@@ -65,9 +65,6 @@ public struct SplitContentView: View {
                 appState: appState,
                 isActive: isActive
             )
-            .onTapGesture {
-                appState.workspace.activePaneID = paneID
-            }
         } else {
             placeholderView
                 .onTapGesture {

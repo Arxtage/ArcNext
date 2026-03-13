@@ -6,10 +6,13 @@ import SwiftTerm
 /// LocalProcessTerminalView handles PTY spawning, key input, resize, and SIGCHLD automatically.
 public final class TerminalContainerView: NSView, @preconcurrency LocalProcessTerminalViewDelegate {
     private var terminalView: LocalProcessTerminalView?
+    nonisolated(unsafe) private var mouseMonitor: Any?
+    private let paneID: UUID
     private let session: TerminalSession
     private let appState: AppState
 
-    public init(session: TerminalSession, appState: AppState) {
+    public init(paneID: UUID, session: TerminalSession, appState: AppState) {
+        self.paneID = paneID
         self.session = session
         self.appState = appState
         super.init(frame: .zero)
@@ -19,6 +22,12 @@ public final class TerminalContainerView: NSView, @preconcurrency LocalProcessTe
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
+        }
     }
 
     private func setupTerminal() {
@@ -45,6 +54,54 @@ public final class TerminalContainerView: NSView, @preconcurrency LocalProcessTe
         session.state = .running
     }
 
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        if window != nil, mouseMonitor == nil {
+            setupMouseMonitor()
+        }
+
+        guard window != nil, appState.workspace.activePaneID == paneID else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.focusTerminal()
+        }
+    }
+
+    public func focusTerminal() {
+        _ = activatePaneAndFocusTerminal()
+    }
+
+    @discardableResult
+    private func activatePaneAndFocusTerminal() -> Bool {
+        if appState.workspace.activePaneID != paneID {
+            appState.workspace.activePaneID = paneID
+        }
+
+        guard let terminalView else { return false }
+        return window?.makeFirstResponder(terminalView) ?? false
+    }
+
+    private func setupMouseMonitor() {
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            guard let self,
+                  let window = self.window,
+                  event.window === window,
+                  let terminalView = self.terminalView else {
+                return event
+            }
+
+            let pointInTerminal = terminalView.convert(event.locationInWindow, from: nil)
+            guard terminalView.bounds.contains(pointInTerminal) else {
+                return event
+            }
+
+            self.focusTerminal()
+            return event
+        }
+    }
+
     // MARK: - LocalProcessTerminalViewDelegate
 
     public func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
@@ -66,6 +123,7 @@ public final class TerminalContainerView: NSView, @preconcurrency LocalProcessTe
 
     public func processTerminated(source: TerminalView, exitCode: Int32?) {
         session.state = .stopped
+        TerminalViewRepresentable.removeFromCache(sessionID: session.id)
     }
 
     public func terminate() {

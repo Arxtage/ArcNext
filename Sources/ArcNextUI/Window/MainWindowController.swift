@@ -1,8 +1,9 @@
 import AppKit
 import ArcNextCore
+import SwiftTerm
 import SwiftUI
 
-public final class MainWindowController: NSWindowController {
+public final class MainWindowController: NSWindowController, NSSplitViewDelegate {
     private let appState: AppState
     nonisolated(unsafe) private var eventMonitor: Any?
 
@@ -36,6 +37,8 @@ public final class MainWindowController: NSWindowController {
         let splitView = NSSplitView()
         splitView.isVertical = true
         splitView.dividerStyle = .thin
+        splitView.autosaveName = "ArcNextSidebar"
+        splitView.delegate = self
 
         // Sidebar (SwiftUI embedded in AppKit)
         let sidebarView = SidebarView(appState: appState)
@@ -52,6 +55,9 @@ public final class MainWindowController: NSWindowController {
         sidebarHost.widthAnchor.constraint(lessThanOrEqualToConstant: 350).isActive = true
 
         window.contentView = splitView
+
+        // Set initial sidebar position (autosave will override if a saved position exists)
+        splitView.setPosition(220, ofDividerAt: 0)
     }
 
     private func setupKeyboardShortcuts() {
@@ -64,7 +70,40 @@ public final class MainWindowController: NSWindowController {
         }
     }
 
+    private func handleTerminalKeyEvent(_ event: NSEvent) -> Bool {
+        guard let terminalView = window?.firstResponder as? LocalProcessTerminalView else {
+            return false
+        }
+
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        switch (event.keyCode, mods) {
+        case (51, [.command]):
+            // Cmd+Backspace → Ctrl+U (kill line)
+            terminalView.getTerminal().sendResponse([UInt8(0x15)])
+            return true
+        case (51, [.option]):
+            // Opt+Backspace → Ctrl+W (delete word backward)
+            terminalView.getTerminal().sendResponse([UInt8(0x17)])
+            return true
+        case (123, [.command]):
+            // Cmd+Left → Ctrl+A (beginning of line)
+            terminalView.getTerminal().sendResponse([UInt8(0x01)])
+            return true
+        case (124, [.command]):
+            // Cmd+Right → Ctrl+E (end of line)
+            terminalView.getTerminal().sendResponse([UInt8(0x05)])
+            return true
+        default:
+            return false
+        }
+    }
+
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if handleTerminalKeyEvent(event) {
+            return true
+        }
+
         guard event.modifierFlags.contains(.command) else { return false }
 
         let hasShift = event.modifierFlags.contains(.shift)
@@ -127,5 +166,23 @@ public final class MainWindowController: NSWindowController {
 
     public func showPalette() {
         appState.isPaletteVisible = true
+    }
+
+    // MARK: - NSSplitViewDelegate
+
+    public func splitView(
+        _ splitView: NSSplitView,
+        constrainMinCoordinate proposedMinimumPosition: CGFloat,
+        ofSubviewAt dividerIndex: Int
+    ) -> CGFloat {
+        dividerIndex == 0 ? 180 : proposedMinimumPosition
+    }
+
+    public func splitView(
+        _ splitView: NSSplitView,
+        constrainMaxCoordinate proposedMaximumPosition: CGFloat,
+        ofSubviewAt dividerIndex: Int
+    ) -> CGFloat {
+        dividerIndex == 0 ? 350 : proposedMaximumPosition
     }
 }

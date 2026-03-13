@@ -9,6 +9,7 @@ struct ArcNextApp {
 
     static func main() {
         let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
         let delegate = ArcNextAppDelegate(appState: appState)
         app.delegate = delegate
         app.run()
@@ -40,6 +41,7 @@ final class ArcNextAppDelegate: NSObject, NSApplicationDelegate {
 
         windowController = MainWindowController(appState: appState)
         windowController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
