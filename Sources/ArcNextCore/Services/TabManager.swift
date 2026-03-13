@@ -58,8 +58,13 @@ public final class TabManager {
     }
 
     public func switchToTab(_ tabID: UUID) {
-        guard workspace.tabs[tabID] != nil else { return }
-        workspace.tabs[tabID]?.touch()
+        guard let tab = workspace.tabs[tabID] else { return }
+        tab.touch()
+        if let pane = workspace.panes.values.first(where: { $0.tabStack.contains(tabID) }),
+           let index = pane.tabStack.firstIndex(of: tabID) {
+            pane.activeTabIndex = index
+            workspace.activePaneID = pane.id
+        }
         workspace.activeTabID = tabID
     }
 

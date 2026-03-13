@@ -51,16 +51,28 @@ struct TabManagerTests {
     @Test("Switch to tab updates activeTabID")
     func switchTab() {
         let workspace = Workspace()
-        let pane = Pane()
-        workspace.addPane(pane)
+        let pane1 = Pane()
+        let pane2 = Pane()
+        workspace.addPane(pane1)
+        workspace.addPane(pane2)
         let manager = TabManager(workspace: workspace)
 
-        let tab1 = manager.createTab(title: "First", contentID: UUID(), inPane: pane.id)
-        let tab2 = manager.createTab(title: "Second", contentID: UUID(), inPane: pane.id)
-        #expect(workspace.activeTabID == tab2.id)
+        let tab1 = manager.createTab(title: "First", contentID: UUID(), inPane: pane1.id)
+        let tab2 = manager.createTab(title: "Second", contentID: UUID(), inPane: pane1.id)
+        let tab3 = manager.createTab(title: "Third", contentID: UUID(), inPane: pane2.id)
+        #expect(workspace.activeTabID == tab3.id)
 
         manager.switchToTab(tab1.id)
         #expect(workspace.activeTabID == tab1.id)
+        #expect(workspace.activePaneID == pane1.id)
+        #expect(pane1.activeTabID == tab1.id)
+
+        manager.switchToTab(tab3.id)
+        #expect(workspace.activeTabID == tab3.id)
+        #expect(workspace.activePaneID == pane2.id)
+        #expect(pane2.activeTabID == tab3.id)
+
+        _ = tab2
     }
 
     @Test("Pin and unpin tab")

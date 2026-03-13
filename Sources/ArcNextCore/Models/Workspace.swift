@@ -54,9 +54,16 @@ public final class Workspace: Identifiable, Codable {
         for pane in panes.values {
             pane.removeTab(tabID)
         }
+        let emptyPaneIDs = panes.values.filter { $0.tabStack.isEmpty }.map(\.id)
+        for emptyPaneID in emptyPaneIDs {
+            removePane(emptyPaneID)
+        }
         tabs.removeValue(forKey: tabID)
         if activeTabID == tabID {
-            activeTabID = ungroupedTabIDs.first ?? tabGroups.first?.tabIDs.first
+            activeTabID = activePaneID.flatMap { panes[$0]?.activeTabID }
+                ?? visibleSplitTabIDs.first
+                ?? ungroupedTabIDs.first
+                ?? tabGroups.compactMap(\.tabIDs.first).first
         }
     }
 
@@ -114,6 +121,17 @@ public final class Workspace: Identifiable, Codable {
     }
 
     // MARK: - Ordered tabs for sidebar display
+
+    public var visibleSplitTabIDs: [UUID] {
+        guard let splitConfiguration, splitConfiguration.paneCount > 1 else { return [] }
+        return splitConfiguration.allPaneIDs.compactMap { paneID in
+            panes[paneID]?.activeTabID
+        }
+    }
+
+    public var visibleUngroupedSplitTabIDs: [UUID] {
+        visibleSplitTabIDs.filter { tabs[$0]?.groupID == nil }
+    }
 
     public var allOrderedTabIDs: [UUID] {
         var result: [UUID] = []

@@ -31,6 +31,34 @@ struct AppStateTests {
         #expect(state.sessionManager.sessions[sessionID] == nil)
     }
 
+    @Test("closeTab keeps focus on remaining visible split tab")
+    func closeTabKeepsFocusOnRemainingVisibleSplitTab() {
+        let state = AppState()
+        let pane1 = Pane()
+        let pane2 = Pane()
+        state.workspace.addPane(pane1)
+        state.workspace.addPane(pane2)
+        state.workspace.splitConfiguration = .split(
+            direction: .vertical,
+            ratio: 0.5,
+            first: .leaf(paneID: pane1.id),
+            second: .leaf(paneID: pane2.id)
+        )
+
+        _ = state.newTerminalTab(inPane: pane1.id)
+        let visibleTab = state.newTerminalTab(inPane: pane1.id)
+        let closingTab = state.newTerminalTab(inPane: pane2.id)
+
+        state.workspace.activePaneID = pane2.id
+        state.workspace.activeTabID = closingTab.id
+
+        state.closeTab(closingTab.id)
+
+        #expect(state.workspace.activePaneID == pane1.id)
+        #expect(state.workspace.activeTabID == visibleTab.id)
+        #expect(pane1.activeTabID == visibleTab.id)
+    }
+
     @Test("splitActivePane creates new pane and updates split config")
     func splitActivePaneCreatesSplit() {
         let state = AppState()

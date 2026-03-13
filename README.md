@@ -10,6 +10,7 @@ The times are changing, i spend more time in terminal than in browser. I run a d
 
 - **Vertical sidebar tabs** — Arc-style SwiftUI list of open terminal sessions
 - **Split panes** — Each pane owns a tab stack for flexible layouts
+- **Combined split tabs** — Visible split panes collapse into one compact sidebar row
 - **Tidy (tab groups)** — Manual named/colored groups, collapsible in sidebar
 - **Universal Cmd+T palette** — Open folders, switch tabs, reopen closed tabs, jump to groups, run actions
 - **Session restore** — Save/restore workspace on quit/launch

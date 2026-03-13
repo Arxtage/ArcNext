@@ -42,15 +42,8 @@ public struct SidebarView: View {
                     }
 
                     // Ungrouped tabs
-                    ForEach(appState.workspace.ungroupedTabIDs, id: \.self) { tabID in
-                        if let tab = appState.workspace.tabs[tabID] {
-                            SidebarTabRow(
-                                tab: tab,
-                                isActive: appState.workspace.activeTabID == tab.id,
-                                onSelect: { selectTab(tab.id) },
-                                onClose: { appState.closeTab(tab.id) }
-                            )
-                        }
+                    ForEach(sidebarUngroupedEntries) { entry in
+                        ungroupedEntryView(entry)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -63,6 +56,68 @@ public struct SidebarView: View {
 
     private func selectTab(_ tabID: UUID) {
         appState.tabManager.switchToTab(tabID)
+    }
+
+    private var sidebarUngroupedEntries: [SidebarUngroupedEntry] {
+        let combinedTabIDs = appState.workspace.visibleUngroupedSplitTabIDs
+        guard combinedTabIDs.count > 1 else {
+            return appState.workspace.ungroupedTabIDs.map { SidebarUngroupedEntry(kind: .single($0)) }
+        }
+
+        let combinedSet = Set(combinedTabIDs)
+        var insertedCombinedRow = false
+
+        return appState.workspace.ungroupedTabIDs.compactMap { tabID in
+            if combinedSet.contains(tabID) {
+                guard !insertedCombinedRow else { return nil }
+                insertedCombinedRow = true
+                return SidebarUngroupedEntry(kind: .combined(combinedTabIDs))
+            }
+
+            return SidebarUngroupedEntry(kind: .single(tabID))
+        }
+    }
+
+    @ViewBuilder
+    private func ungroupedEntryView(_ entry: SidebarUngroupedEntry) -> some View {
+        switch entry.kind {
+        case .combined(let tabIDs):
+            let tabs = tabIDs.compactMap { appState.workspace.tabs[$0] }
+            if tabs.count > 1 {
+                CompactTabRow(
+                    tabs: tabs,
+                    activeTabID: appState.workspace.activeTabID,
+                    onSelectTab: selectTab
+                )
+            }
+        case .single(let tabID):
+            if let tab = appState.workspace.tabs[tabID] {
+                SidebarTabRow(
+                    tab: tab,
+                    isActive: appState.workspace.activeTabID == tab.id,
+                    onSelect: { selectTab(tab.id) },
+                    onClose: { appState.closeTab(tab.id) }
+                )
+            }
+        }
+    }
+}
+
+private struct SidebarUngroupedEntry: Identifiable {
+    enum Kind {
+        case combined([UUID])
+        case single(UUID)
+    }
+
+    let kind: Kind
+
+    var id: String {
+        switch kind {
+        case .combined(let tabIDs):
+            return "combined:" + tabIDs.map(\.uuidString).joined(separator: ",")
+        case .single(let tabID):
+            return tabID.uuidString
+        }
     }
 }
 
@@ -107,8 +162,64 @@ struct SidebarGroupSection: View {
                     )
                     .padding(.leading, 16)
                 }
+            } else if !tabs.isEmpty {
+                CompactTabRow(
+                    tabs: tabs,
+                    activeTabID: activeTabID,
+                    onSelectTab: onSelectTab
+                )
+                .padding(.leading, 16)
             }
         }
+    }
+}
+
+struct CompactTabRow: View {
+    let tabs: [ArcNextCore.Tab]
+    let activeTabID: UUID?
+    let onSelectTab: (UUID) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
+                    let isActive = activeTabID == tab.id
+
+                    Button { onSelectTab(tab.id) } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: tab.contentType == .terminal ? "terminal" : "globe")
+                                .font(.system(size: 10))
+                                .foregroundStyle(isActive ? .primary : .secondary)
+                            Text(tab.title)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: 48)
+                                .foregroundStyle(isActive ? .primary : .secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    if index < tabs.count - 1 {
+                        Divider()
+                            .frame(height: 14)
+                            .padding(.horizontal, 2)
+                    }
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.06))
+        )
     }
 }
 

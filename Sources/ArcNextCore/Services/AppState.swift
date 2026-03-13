@@ -105,6 +105,13 @@ public final class AppState {
         guard let tab = workspace.tabs[tabID] else { return }
         sessionManager.closeSession(tab.contentID)
         tabManager.closeTab(tabID)
+
+        if workspace.tabs.isEmpty {
+            let pane = Pane()
+            workspace.addPane(pane)
+            workspace.splitConfiguration = .leaf(paneID: pane.id)
+            newTerminalTab(inPane: pane.id)
+        }
     }
 
     // MARK: - Session Restore
