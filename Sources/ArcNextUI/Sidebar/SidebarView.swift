@@ -48,7 +48,7 @@ public struct SidebarView: View {
                                 tab: tab,
                                 isActive: appState.workspace.activeTabID == tab.id,
                                 onSelect: { selectTab(tab.id) },
-                                onClose: { appState.tabManager.closeTab(tab.id) }
+                                onClose: { appState.closeTab(tab.id) }
                             )
                         }
                     }

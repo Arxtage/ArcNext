@@ -1,9 +1,10 @@
 import Foundation
 
 /// Manages terminal session lifecycle: creation, tracking, and cleanup.
+/// PTY spawning is now handled by LocalProcessTerminalView in the UI layer.
 @Observable
 public final class SessionManager {
-    public private(set) var sessions: [UUID: TerminalSession] = [:]
+    public var sessions: [UUID: TerminalSession] = [:]
     private let ptyService: PTYService
 
     public init(ptyService: PTYService = PTYService()) {
@@ -12,37 +13,21 @@ public final class SessionManager {
 
     @discardableResult
     public func createSession(
-        shell: String? = nil,
         workingDirectory: URL? = nil,
         profile: TerminalProfile = .default
-    ) throws -> TerminalSession {
-        let resolvedShell = shell ?? defaultShell()
+    ) -> TerminalSession {
         let session = TerminalSession(
             currentDirectory: workingDirectory,
+            state: .running,
             profile: profile
         )
-
-        let env = ProcessInfo.processInfo.environment
-        let handle = try ptyService.spawn(
-            shell: resolvedShell,
-            arguments: ["-l"],
-            environment: env,
-            workingDirectory: workingDirectory
-        )
-
-        session.ptyHandle = handle
-        session.shellPID = handle.pid
-        session.state = .running
-
         sessions[session.id] = session
         return session
     }
 
     public func closeSession(_ sessionID: UUID) {
         guard let session = sessions[sessionID] else { return }
-        if let handle = session.ptyHandle {
-            ptyService.terminate(handle: handle)
-        }
+        session.onTerminate?()
         session.state = .stopped
         sessions.removeValue(forKey: sessionID)
     }
@@ -53,13 +38,7 @@ public final class SessionManager {
         }
     }
 
-    public func resizeSession(_ sessionID: UUID, cols: UInt16, rows: UInt16) {
-        guard let session = sessions[sessionID],
-              let handle = session.ptyHandle else { return }
-        try? ptyService.resize(handle: handle, cols: cols, rows: rows)
-    }
-
-    private func defaultShell() -> String {
+    public func defaultShell() -> String {
         ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
     }
 }

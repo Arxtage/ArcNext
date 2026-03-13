@@ -25,10 +25,8 @@ public final class AppState {
         workingDirectory: URL? = nil,
         inGroup groupID: UUID? = nil,
         inPane paneID: UUID? = nil
-    ) -> Tab? {
-        guard let session = try? sessionManager.createSession(workingDirectory: workingDirectory) else {
-            return nil
-        }
+    ) -> Tab {
+        let session = sessionManager.createSession(workingDirectory: workingDirectory)
         let title = workingDirectory?.lastPathComponent ?? "Terminal"
         let tab = tabManager.createTab(
             title: title,
@@ -56,7 +54,7 @@ public final class AppState {
         let newPane = Pane()
         workspace.addPane(newPane)
 
-        guard let session = try? sessionManager.createSession() else { return }
+        let session = sessionManager.createSession()
         let tab = tabManager.createTab(
             title: "Terminal",
             contentType: .terminal,
@@ -64,6 +62,8 @@ public final class AppState {
             inPane: newPane.id
         )
         _ = tab
+
+        workspace.activePaneID = newPane.id
 
         if let splitConfig = workspace.splitConfiguration {
             workspace.splitConfiguration = splitConfig.insertSplit(
@@ -99,6 +99,14 @@ public final class AppState {
         }
     }
 
+    // MARK: - Tab Close
+
+    public func closeTab(_ tabID: UUID) {
+        guard let tab = workspace.tabs[tabID] else { return }
+        sessionManager.closeSession(tab.contentID)
+        tabManager.closeTab(tabID)
+    }
+
     // MARK: - Session Restore
 
     private var saveURL: URL {
@@ -121,16 +129,19 @@ public final class AppState {
         // Merge restored state into current workspace
         for (id, tab) in restored.tabs {
             workspace.tabs[id] = tab
+            // Create stopped session so the view can reconnect
+            let session = TerminalSession(id: tab.contentID, state: .stopped)
+            sessionManager.sessions[session.id] = session
         }
         for group in restored.tabGroups {
             workspace.tabGroups.append(group)
         }
         workspace.ungroupedTabIDs = restored.ungroupedTabIDs
         workspace.activeTabID = restored.activeTabID
+        workspace.activePaneID = restored.activePaneID
         workspace.splitConfiguration = restored.splitConfiguration
         for (id, pane) in restored.panes {
             workspace.panes[id] = pane
         }
     }
 }
-

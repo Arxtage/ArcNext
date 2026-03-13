@@ -31,6 +31,7 @@ final class ArcNextAppDelegate: NSObject, NSApplicationDelegate {
         if appState.workspace.tabs.isEmpty {
             let pane = Pane()
             appState.workspace.addPane(pane)
+            appState.workspace.activePaneID = pane.id
             if appState.workspace.splitConfiguration == nil {
                 appState.workspace.splitConfiguration = .leaf(paneID: pane.id)
             }

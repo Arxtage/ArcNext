@@ -8,6 +8,7 @@ public final class Workspace: Identifiable, Codable {
     public var ungroupedTabIDs: [UUID]
     public var panes: [UUID: Pane]
     public var activeTabID: UUID?
+    public var activePaneID: UUID?
     public var splitConfiguration: SplitNode?
 
     public init(
@@ -17,6 +18,7 @@ public final class Workspace: Identifiable, Codable {
         ungroupedTabIDs: [UUID] = [],
         panes: [UUID: Pane] = [:],
         activeTabID: UUID? = nil,
+        activePaneID: UUID? = nil,
         splitConfiguration: SplitNode? = nil
     ) {
         self.id = id
@@ -25,6 +27,7 @@ public final class Workspace: Identifiable, Codable {
         self.ungroupedTabIDs = ungroupedTabIDs
         self.panes = panes
         self.activeTabID = activeTabID
+        self.activePaneID = activePaneID
         self.splitConfiguration = splitConfiguration
     }
 
@@ -97,11 +100,17 @@ public final class Workspace: Identifiable, Codable {
 
     public func addPane(_ pane: Pane) {
         panes[pane.id] = pane
+        if activePaneID == nil {
+            activePaneID = pane.id
+        }
     }
 
     public func removePane(_ paneID: UUID) {
         panes.removeValue(forKey: paneID)
         splitConfiguration = splitConfiguration?.removePane(paneID)
+        if activePaneID == paneID {
+            activePaneID = panes.keys.first
+        }
     }
 
     // MARK: - Ordered tabs for sidebar display
