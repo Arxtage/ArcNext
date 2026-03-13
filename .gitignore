@@ -1,0 +1,34 @@
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+Packages/
+
+# macOS
+.DS_Store
+*.dSYM
+*.dSYM.zip
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# Archives
+*.ipa
+*.xcarchive
+*.zip
