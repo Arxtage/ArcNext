@@ -1,4 +1,6 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+
+type Callback = (...args: unknown[]) => void
 
 const api = {
   pty: {
@@ -10,12 +12,21 @@ const api = {
       ipcRenderer.send('pty:resize', paneId, cols, rows),
     kill: (paneId: string) =>
       ipcRenderer.send('pty:kill', paneId),
-    onData: (callback: (paneId: string, data: string) => void) =>
-      ipcRenderer.on('pty:data', (_event, paneId, data) => callback(paneId, data)),
-    onExit: (callback: (paneId: string, code: number) => void) =>
-      ipcRenderer.on('pty:exit', (_event, paneId, code) => callback(paneId, code)),
-    onTitle: (callback: (paneId: string, title: string) => void) =>
-      ipcRenderer.on('pty:title', (_event, paneId, title) => callback(paneId, title))
+    onData: (callback: (paneId: string, data: string) => void) => {
+      const handler = (_event: IpcRendererEvent, paneId: string, data: string) => callback(paneId, data)
+      ipcRenderer.on('pty:data', handler)
+      return () => { ipcRenderer.removeListener('pty:data', handler) }
+    },
+    onExit: (callback: (paneId: string, code: number) => void) => {
+      const handler = (_event: IpcRendererEvent, paneId: string, code: number) => callback(paneId, code)
+      ipcRenderer.on('pty:exit', handler)
+      return () => { ipcRenderer.removeListener('pty:exit', handler) }
+    },
+    onTitle: (callback: (paneId: string, title: string) => void) => {
+      const handler = (_event: IpcRendererEvent, paneId: string, title: string) => callback(paneId, title)
+      ipcRenderer.on('pty:title', handler)
+      return () => { ipcRenderer.removeListener('pty:title', handler) }
+    }
   }
 }
 

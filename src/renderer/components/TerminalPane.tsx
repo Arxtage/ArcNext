@@ -1,0 +1,42 @@
+import { useEffect, useRef } from 'react'
+import { usePaneStore } from '../store/paneStore'
+import { attachTerminal, fitTerminal, focusTerminal } from '../model/terminalManager'
+
+interface Props {
+  paneId: string
+}
+
+export default function TerminalPane({ paneId }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const activePaneId = usePaneStore((s) => s.activePaneId)
+  const setActive = usePaneStore((s) => s.setActive)
+  const isActive = activePaneId === paneId
+
+  // Attach terminal DOM to this container on mount
+  useEffect(() => {
+    if (!containerRef.current) return
+    attachTerminal(paneId, containerRef.current)
+  }, [paneId])
+
+  // Focus when active
+  useEffect(() => {
+    if (isActive) focusTerminal(paneId)
+  }, [isActive, paneId])
+
+  // Refit on container resize
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => fitTerminal(paneId))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [paneId])
+
+  return (
+    <div
+      className={`terminal-pane ${isActive ? 'active' : ''}`}
+      onMouseDown={() => setActive(paneId)}
+      ref={containerRef}
+    />
+  )
+}
