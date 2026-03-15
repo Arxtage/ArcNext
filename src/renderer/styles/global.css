@@ -93,6 +93,16 @@ html, body, #root, #app {
   background: #242424;
 }
 
+.ws-row.ws-dragging {
+  opacity: 0.4;
+}
+
+.ws-row.ws-drop-target {
+  outline: 2px solid #74c0fc;
+  outline-offset: -2px;
+  background: #74c0fc15;
+}
+
 .ws-row .ws-close {
   position: absolute;
   top: 6px;

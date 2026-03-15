@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  SplitNode, leaf, splitNode, removeNode, allPaneIds, adjacentPaneId, Direction,
+  SplitNode, leaf, split, splitNode, removeNode, allPaneIds, adjacentPaneId, Direction,
   navigateDirection, NavDirection
 } from '../model/splitTree'
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
@@ -38,6 +38,7 @@ interface PaneStore {
   addWorkspace: () => void
   removeWorkspace: (id: string) => void
   switchWorkspace: (id: string) => void
+  mergeWorkspaces: (targetId: string, sourceId: string, direction: Direction) => void
 
   // Pane actions (on active workspace)
   splitActive: (direction: Direction) => void
@@ -113,6 +114,27 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   },
 
   switchWorkspace: (id) => set({ activeWorkspaceId: id }),
+
+  mergeWorkspaces: (targetId, sourceId, direction) => {
+    if (targetId === sourceId) return
+    const { workspaces } = get()
+    const targetWs = workspaces.find((w) => w.id === targetId)
+    const sourceWs = workspaces.find((w) => w.id === sourceId)
+    if (!targetWs || !sourceWs) return
+
+    const mergedTree = split(direction, targetWs.tree, sourceWs.tree, 0.5)
+    const updatedTarget: Workspace = {
+      ...targetWs,
+      tree: mergedTree
+    }
+
+    set({
+      workspaces: workspaces
+        .map((w) => (w.id === targetId ? updatedTarget : w))
+        .filter((w) => w.id !== sourceId),
+      activeWorkspaceId: targetId
+    })
+  },
 
   splitActive: (direction) => {
     const { workspaces, activeWorkspaceId, panes } = get()
