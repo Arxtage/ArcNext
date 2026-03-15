@@ -47,7 +47,8 @@ export function createTerminal(paneId: string): Terminal {
       white: '#e0e0e0'
     },
     cursorBlink: true,
-    allowProposedApi: true
+    allowProposedApi: true,
+    scrollback: 10_000
   })
 
   const fit = new FitAddon()
@@ -97,6 +98,12 @@ export function createTerminal(paneId: string): Terminal {
   return term
 }
 
+function safeFit(managed: ManagedTerminal): void {
+  const host = managed.term.element?.parentElement
+  if (!host || host.clientWidth === 0 || host.clientHeight === 0) return
+  managed.fit.fit()
+}
+
 /** Attach a terminal to a DOM element. Call this when the component mounts. */
 export function attachTerminal(paneId: string, container: HTMLElement): void {
   const managed = terminals.get(paneId)
@@ -105,6 +112,12 @@ export function attachTerminal(paneId: string, container: HTMLElement): void {
   const host = managed.term.element?.parentElement
   if (!host) return
 
+  // Already in the target container — just refit
+  if (host.parentElement === container) {
+    safeFit(managed)
+    return
+  }
+
   // Clear any stale DOM from this container before attaching
   while (container.firstChild) {
     container.removeChild(container.firstChild)
@@ -112,7 +125,7 @@ export function attachTerminal(paneId: string, container: HTMLElement): void {
 
   // Move host div from parking (or previous container) into new container
   container.appendChild(host)
-  managed.fit.fit()
+  safeFit(managed)
 }
 
 /** Detach terminal back to parking div. Call this when the component unmounts. */
@@ -127,7 +140,8 @@ export function detachTerminal(paneId: string): void {
 
 /** Refit the terminal to its container size */
 export function fitTerminal(paneId: string): void {
-  terminals.get(paneId)?.fit.fit()
+  const managed = terminals.get(paneId)
+  if (managed) safeFit(managed)
 }
 
 /** Focus the terminal */

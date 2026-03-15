@@ -7,7 +7,7 @@
 html, body, #root, #app {
   height: 100%;
   overflow: hidden;
-  background: #1a1a2e;
+  background: #161616;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #e0e0e0;
 }
@@ -23,8 +23,8 @@ html, body, #root, #app {
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  background: #16162a;
-  border-right: 1px solid #2a2a4a;
+  background: #121212;
+  border-right: 1px solid #2a2a2a;
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -48,13 +48,13 @@ html, body, #root, #app {
 }
 
 .sidebar-list::-webkit-scrollbar-thumb {
-  background: #3a3a5e;
+  background: #3a3a3a;
   border-radius: 2px;
 }
 
 .sidebar-footer {
   padding: 8px;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid #2a2a2a;
   -webkit-app-region: no-drag;
 }
 
@@ -62,7 +62,7 @@ html, body, #root, #app {
   width: 100%;
   padding: 6px 12px;
   background: none;
-  border: 1px dashed #3a3a5e;
+  border: 1px dashed #3a3a3a;
   border-radius: 8px;
   color: #888;
   font-size: 13px;
@@ -86,11 +86,11 @@ html, body, #root, #app {
 }
 
 .ws-row:hover {
-  background: #1e1e3a;
+  background: #1e1e1e;
 }
 
 .ws-row.active {
-  background: #22223e;
+  background: #242424;
 }
 
 .ws-row .ws-close {
@@ -150,7 +150,7 @@ html, body, #root, #app {
   flex: 1;
   min-width: 0;
   padding: 4px 8px;
-  background: #2a2a4a;
+  background: #2a2a2a;
   border-radius: 6px;
   font-size: 11px;
   text-align: center;
@@ -161,43 +161,42 @@ html, body, #root, #app {
 }
 
 .ws-pill.pill-active {
-  background: #3a3a6a;
+  background: #3a3a3a;
 }
 
 /* ── Workspace content area ── */
 #workspace {
+  position: relative;
   flex: 1;
   display: flex;
   overflow: hidden;
   -webkit-app-region: no-drag;
 }
 
-/* ── Split layout ── */
-.split-container {
+/* ── Workspace layers (all rendered, only active visible) ── */
+.ws-layer {
+  position: absolute;
+  inset: 0;
   display: flex;
+  visibility: hidden;
+  pointer-events: none;
+}
+.ws-layer.active {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ── Split layout ── */
+.split-root {
+  position: relative;
   flex: 1;
   overflow: hidden;
 }
 
-.split-container.horizontal {
-  flex-direction: row;
-}
-
-.split-container.vertical {
-  flex-direction: column;
-}
-
-.split-child {
-  display: flex;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 0;
-}
-
 .split-divider {
-  flex-shrink: 0;
-  background: #2a2a4a;
+  background: #2a2a2a;
   transition: background 0.15s;
+  z-index: 1;
 }
 
 .split-divider:hover {
@@ -205,24 +204,23 @@ html, body, #root, #app {
 }
 
 .split-divider.horizontal {
-  width: 3px;
   cursor: col-resize;
 }
 
 .split-divider.vertical {
-  height: 3px;
   cursor: row-resize;
 }
 
 /* ── Terminal pane ── */
 .terminal-pane {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   position: relative;
 }
 
 .terminal-pane.active {
-  outline: 1px solid #3a3a5e;
+  outline: 1px solid #3a3a3a;
   outline-offset: -1px;
 }
 

@@ -14,6 +14,7 @@ const ARROW_TO_DIR: Record<string, NavDirection> = {
 
 export default function App() {
   const ws = useActiveWorkspace()
+  const activeWorkspaceId = usePaneStore((s) => s.activeWorkspaceId)
   const splitActive = usePaneStore((s) => s.splitActive)
   const closePane = usePaneStore((s) => s.closePane)
   const addWorkspace = usePaneStore((s) => s.addWorkspace)
@@ -125,7 +126,11 @@ export default function App() {
     <div id="app">
       <Sidebar />
       <div id="workspace">
-        {ws && <SplitView key={ws.id} node={ws.tree} />}
+        {workspaces.map((w) => (
+          <div key={w.id} className={`ws-layer ${w.id === activeWorkspaceId ? 'active' : ''}`}>
+            <SplitView node={w.tree} />
+          </div>
+        ))}
       </div>
     </div>
   )
