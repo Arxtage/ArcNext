@@ -127,8 +127,8 @@ body,
 .sidebar-resize-handle {
     position: absolute;
     top: 0;
-    right: -2px;
-    width: 5px;
+    right: -4px;
+    width: 9px;
     height: 100%;
     cursor: col-resize;
     z-index: 10;
@@ -418,7 +418,6 @@ body,
     overflow: hidden;
     -webkit-app-region: no-drag;
     margin: 6px 6px 6px 0;
-    border: 1px solid #2a2a2a;
     border-radius: 10px;
 }
 
