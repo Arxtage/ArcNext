@@ -2,80 +2,92 @@
 
 You like Arc Browser? You like living in the terminal with AI agents? You'll love ArcNext.
 
-A native macOS terminal emulator with Arc browser-style UX. Built for developers who've shifted from browser+terminal+IDE to terminal-heavy workflows.
+A terminal emulator with Arc browser-style UX, built on Electron. For developers who've shifted from browser+terminal+IDE to terminal-heavy workflows.
 
 ## Why build this?
 
 The times are changing, i spend more time in terminal than in browser. I run a dozen of agents with different context and need to jump between them. See this https://x.com/armantsaturian/status/2032392669763158205?s=20 and https://x.com/karpathy/status/2031767720933634100. We need a new surface. Arc + Terminal with proper Agent Command Control = ArcTerm.
 
-- **Vertical sidebar tabs** — Arc-style SwiftUI list of open terminal sessions
-- **Split panes** — Each pane owns a tab stack for flexible layouts
-- **Combined split tabs** — Visible split panes collapse into one compact sidebar row
-- **Tidy (tab groups)** — Manual named/colored groups, collapsible in sidebar
-- **Universal Cmd+T palette** — Open folders, switch tabs, reopen closed tabs, jump to groups, run actions
-- **Session restore** — Save/restore workspace on quit/launch
-- **Theming** — Dark mode, configurable colors/fonts
+## Features
 
-## Requirements
-
-- macOS 15+
-- Swift 6.0+
-- Xcode 16+
-
-## Build
-
-```bash
-swift build
-```
-
-## Run
-
-```bash
-swift run ArcNext
-```
-
-## Test
-
-```bash
-swift test
-```
+- **Vertical sidebar tabs** — Arc-style workspace list with color picker
+- **Split panes** — Vertical and horizontal splits within a workspace
+- **Combined split tabs** — Multi-pane workspaces collapse into one compact sidebar row
+- **Drag-and-drop** — Drop files onto a terminal pane to insert the path
+- **Workspace merging** — Drag sidebar rows to merge workspaces; hold Shift for horizontal split
+- **Right-click to separate** — Split merged workspaces back into individual rows
+- **Collapsible sidebar** — Resize handle, traffic light hiding, Cmd+B toggle
+- **Per-pane close buttons** — Hover over a merged workspace row to close individual panes
 
 ## Tech Stack
 
 | Component | Choice |
 |-----------|--------|
-| Language | Swift 6 |
-| UI | AppKit + SwiftUI hybrid |
-| Terminal | SwiftTerm (SPM) |
-| Rendering | Core Text (P1), Metal (P2) |
-| Min target | macOS 15 |
+| Runtime | Electron 34 |
+| Bundler | electron-vite + Vite 6 |
+| UI | React 19 + TypeScript |
+| Terminal | xterm.js 6 (WebGL, web-links, fit addons) |
+| PTY | node-pty |
+| State | Zustand 5 |
+| Packaging | electron-builder (macOS DMG) |
 
 ## Project Structure
 
 ```
-Sources/
-├── ArcNextApp/       # Entry point, AppState
-├── ArcNextCore/      # Models, Services, Protocols (no UI)
-├── ArcNextUI/        # Sidebar, Terminal, Split, Palette, Window
-└── ArcNextBrowser/   # P2 stub module
-Tests/
-└── ArcNextCoreTests/ # Unit tests for core logic
+src/
+├── main/              # Electron main process
+│   ├── main.ts        # Window lifecycle, IPC handlers
+│   └── pty.ts         # node-pty spawning and management
+├── preload/           # IPC bridge
+│   └── preload.ts     # contextBridge exposing PTY API to renderer
+├── renderer/          # React UI
+│   ├── App.tsx        # Root component, keyboard shortcuts
+│   ├── components/    # Sidebar, SplitView, TerminalPane
+│   ├── model/         # splitTree (binary tree), terminalManager
+│   ├── store/         # paneStore (Zustand — workspaces, splits, panes)
+│   └── styles/        # global.css
+└── shared/            # Shared types (IPC channel definitions)
 ```
 
-## Architecture
+## Requirements
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+- Node.js 20+
+- macOS (target platform)
+
+## Setup
+
+```bash
+npm install
+```
+
+## Dev
+
+```bash
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build          # production build
+npm run package        # build macOS DMG
+```
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+T` | Toggle palette |
-| `Cmd+D` | Split vertical |
-| `Cmd+Shift+D` | Split horizontal |
-| `Cmd+W` | Close active tab |
-| `Cmd+1-9` | Switch to tab by index |
-| `Cmd+[` / `Cmd+]` | Cycle tabs |
+| `Cmd+T` | New workspace |
+| `Cmd+D` | Split right |
+| `Cmd+Shift+D` | Split down |
+| `Cmd+W` | Close active pane |
+| `Cmd+B` | Toggle sidebar |
+| `Cmd+1-9` | Switch workspace by index |
+| `Opt+Cmd+Arrows` | Navigate between panes |
+| `Opt+Left/Right` | Word jump |
+| `Cmd+Left/Right` | Line start / end |
+| `Opt+Backspace` | Delete previous word |
+| `Cmd+Backspace` | Delete to line start |
 
 ## License
 
