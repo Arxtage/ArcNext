@@ -280,7 +280,7 @@ function WorkspaceRow({
       ) : (
         <div className="ws-multi">
           {paneInfos.map((p) => (
-            <span key={p.id} className={`ws-pill ${p.id === workspace.activePaneId ? 'pill-active' : ''}`}>
+            <span key={p.id} className={`ws-pill ${isActive && p.id === workspace.activePaneId ? 'pill-active' : ''}`}>
               {formatTitle(p.title)}
               {isActive && (
                 <button

@@ -198,11 +198,14 @@ body,
 /* ── Workspace rows ── */
 .ws-row {
     position: relative;
-    padding: 8px 10px;
+    height: 34px;
+    padding: 0 10px;
     margin-bottom: 2px;
     border-radius: 8px;
     border-left: 3px solid var(--ws-color, transparent);
     cursor: pointer;
+    display: flex;
+    align-items: center;
     transition: background 0.15s;
 }
 
@@ -271,31 +274,38 @@ body,
 }
 
 .ws-row:has(.ws-multi) {
-    padding: 4px 4px 4px 2px;
-    /* less left padding */
-    padding-left: 2px;
+    padding: 3px 3px 3px 0;
 }
 
 /* Multi-pane workspace — concatenated pills */
 .ws-multi {
     display: flex;
-    gap: 4px;
+    gap: 0;
     overflow: hidden;
+    flex: 1;
+    align-self: stretch;
+    align-items: stretch;
 }
 
 .ws-pill {
     position: relative;
     flex: 1;
     min-width: 0;
-    padding: 5px 8px;
-    background: #2a2a2a;
-    border-radius: 8px;
+    padding: 0 8px;
+    background: transparent;
+    border-radius: 0;
+    border-right: 1px solid #3a3a3a;
     font-size: 12px;
-    text-align: center;
+    text-align: left;
+    line-height: 28px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     transition: background 0.15s;
+}
+
+.ws-pill:last-child {
+    border-right: none;
 }
 
 .ws-row.active .ws-pill {
@@ -303,7 +313,8 @@ body,
 }
 
 .ws-pill.pill-active {
-    background: #3a3a3a;
+    background: #2a2a2a;
+    border-radius: 6px;
 }
 
 .pill-close {
