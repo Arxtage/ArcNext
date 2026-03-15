@@ -28,9 +28,16 @@ export default function TerminalPane({ paneId }: Props) {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const observer = new ResizeObserver(() => fitTerminal(paneId))
+    let rafId = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => fitTerminal(paneId))
+    })
     observer.observe(el)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
   }, [paneId])
 
   return (

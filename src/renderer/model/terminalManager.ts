@@ -100,7 +100,7 @@ export function createTerminal(paneId: string): Terminal {
 
 function safeFit(managed: ManagedTerminal): void {
   const host = managed.term.element?.parentElement
-  if (!host || host.clientWidth === 0 || host.clientHeight === 0) return
+  if (!host || host.clientWidth < 20 || host.clientHeight < 20) return
   managed.fit.fit()
 }
 

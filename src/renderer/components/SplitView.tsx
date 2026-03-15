@@ -56,27 +56,23 @@ export default function SplitView({ node }: Props) {
 
   return (
     <div ref={containerRef} className="split-root">
-      {size.w > 0 && size.h > 0 && (
-        <>
-          {panes.map((p) => (
-            <div
-              key={p.paneId}
-              style={{
-                position: 'absolute',
-                left: p.left,
-                top: p.top,
-                width: p.width,
-                height: p.height,
-              }}
-            >
-              <TerminalPane paneId={p.paneId} />
-            </div>
-          ))}
-          {dividers.map((d) => (
-            <Divider key={d.key} info={d} containerRef={containerRef} tree={node} />
-          ))}
-        </>
-      )}
+      {panes.map((p) => (
+        <div
+          key={p.paneId}
+          style={{
+            position: 'absolute',
+            left: p.left,
+            top: p.top,
+            width: p.width,
+            height: p.height,
+          }}
+        >
+          <TerminalPane paneId={p.paneId} />
+        </div>
+      ))}
+      {dividers.map((d) => (
+        <Divider key={d.key} info={d} containerRef={containerRef} tree={node} />
+      ))}
     </div>
   )
 }
