@@ -467,6 +467,7 @@ body,
     height: 100%;
     overflow: hidden;
     position: relative;
+    background: #161616;
 }
 
 .terminal-pane.active {
@@ -480,4 +481,5 @@ body,
 .xterm {
     height: 100%;
     padding: 4px;
+    background: #161616;
 }
