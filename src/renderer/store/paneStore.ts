@@ -141,7 +141,10 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     if (!ws) return
 
     const ids = allPaneIds(ws.tree)
-    if (ids.length <= 1) return
+    if (ids.length <= 1) {
+      get().removeWorkspace(activeWorkspaceId)
+      return
+    }
 
     const newTree = removeNode(ws.tree, id)
     if (!newTree) return
