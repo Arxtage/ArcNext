@@ -170,6 +170,9 @@ export default function Sidebar() {
             }}
           />
         ))}
+        <button className="sidebar-add" onClick={addWorkspace}>
+          {sidebarCollapsed ? '+' : '+ New Workspace'}
+        </button>
       </div>
       {contextMenu && (
         <div
@@ -199,11 +202,6 @@ export default function Sidebar() {
           }}
         />
       )}
-      <div className="sidebar-footer">
-        <button className="sidebar-add" onClick={addWorkspace}>
-          {sidebarCollapsed ? '+' : '+ New Workspace'}
-        </button>
-      </div>
       {!sidebarCollapsed && (
         <div className="sidebar-resize-handle" onMouseDown={handleResizeStart} />
       )}
