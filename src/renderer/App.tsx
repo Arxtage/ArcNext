@@ -2,17 +2,24 @@ import { useEffect } from 'react'
 import SplitView from './components/SplitView'
 import Sidebar from './components/Sidebar'
 import { usePaneStore, useActiveWorkspace } from './store/paneStore'
-import { setTitleChangeCallback } from './model/terminalManager'
+import { setTitleChangeCallback, writeToTerminalPTY } from './model/terminalManager'
+import { NavDirection } from './model/splitTree'
+
+const ARROW_TO_DIR: Record<string, NavDirection> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down'
+}
 
 export default function App() {
   const ws = useActiveWorkspace()
   const splitActive = usePaneStore((s) => s.splitActive)
   const closePane = usePaneStore((s) => s.closePane)
-  const focusNext = usePaneStore((s) => s.focusNext)
-  const focusPrev = usePaneStore((s) => s.focusPrev)
   const addWorkspace = usePaneStore((s) => s.addWorkspace)
   const setPaneTitle = usePaneStore((s) => s.setPaneTitle)
   const switchWorkspace = usePaneStore((s) => s.switchWorkspace)
+  const navigateDir = usePaneStore((s) => s.navigateDir)
   const workspaces = usePaneStore((s) => s.workspaces)
 
   // Wire terminal title changes into the store
@@ -23,45 +30,86 @@ export default function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey
+      const alt = e.altKey
+
+      // Opt+Cmd+Arrow — navigate panes / cross workspace at boundary
+      if (meta && alt && e.key in ARROW_TO_DIR) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        navigateDir(ARROW_TO_DIR[e.key])
+        return
+      }
+
+      // Option+Left/Right — word jump
+      if (alt && !meta && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x1bb') // ESC+b backward word
+        return
+      }
+      if (alt && !meta && e.key === 'ArrowRight') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x1bf') // ESC+f forward word
+        return
+      }
+
+      // Option+Backspace — delete previous word
+      if (alt && !meta && e.key === 'Backspace') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x17') // Ctrl+W
+        return
+      }
+
+      // Cmd+Backspace — delete to beginning of line
+      if (meta && !alt && e.key === 'Backspace') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x15') // Ctrl+U
+        return
+      }
+
+      // Cmd+Left/Right — jump to line start/end
+      if (meta && !alt && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x01') // Ctrl+A
+        return
+      }
+      if (meta && !alt && e.key === 'ArrowRight') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        if (ws) writeToTerminalPTY(ws.activePaneId, '\x05') // Ctrl+E
+        return
+      }
 
       // Cmd+D — split right
-      if (meta && !e.shiftKey && e.key === 'd') {
+      if (meta && !e.shiftKey && !alt && e.key === 'd') {
         e.preventDefault()
         splitActive('horizontal')
         return
       }
       // Cmd+Shift+D — split down
-      if (meta && e.shiftKey && e.key === 'D') {
+      if (meta && e.shiftKey && !alt && e.key === 'D') {
         e.preventDefault()
         splitActive('vertical')
         return
       }
       // Cmd+W — close pane
-      if (meta && !e.shiftKey && e.key === 'w') {
+      if (meta && !e.shiftKey && !alt && e.key === 'w') {
         e.preventDefault()
         if (ws) closePane(ws.activePaneId)
         return
       }
-      // Cmd+] — next pane
-      if (meta && e.key === ']') {
-        e.preventDefault()
-        focusNext()
-        return
-      }
-      // Cmd+[ — previous pane
-      if (meta && e.key === '[') {
-        e.preventDefault()
-        focusPrev()
-        return
-      }
       // Cmd+T — new workspace
-      if (meta && e.key === 't') {
+      if (meta && !alt && e.key === 't') {
         e.preventDefault()
         addWorkspace()
         return
       }
       // Cmd+1-9 — switch workspace by index
-      if (meta && e.key >= '1' && e.key <= '9') {
+      if (meta && !alt && e.key >= '1' && e.key <= '9') {
         e.preventDefault()
         const idx = parseInt(e.key) - 1
         if (idx < workspaces.length) switchWorkspace(workspaces[idx].id)
@@ -69,9 +117,9 @@ export default function App() {
       }
     }
 
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [splitActive, closePane, focusNext, focusPrev, addWorkspace, switchWorkspace, ws, workspaces])
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [splitActive, closePane, addWorkspace, switchWorkspace, navigateDir, ws, workspaces])
 
   return (
     <div id="app">

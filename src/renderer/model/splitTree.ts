@@ -70,3 +70,52 @@ export function adjacentPaneId(tree: SplitNode, currentId: string, offset: 1 | -
   if (idx === -1) return ids[0]
   return ids[(idx + offset + ids.length) % ids.length]
 }
+
+export type NavDirection = 'left' | 'right' | 'up' | 'down'
+
+function containsPane(node: SplitNode, paneId: string): boolean {
+  if (node.type === 'leaf') return node.paneId === paneId
+  return containsPane(node.first, paneId) || containsPane(node.second, paneId)
+}
+
+function edgeLeaf(node: SplitNode, side: 'first' | 'last'): string {
+  if (node.type === 'leaf') return node.paneId
+  if (side === 'first') return edgeLeaf(node.first, 'first')
+  return edgeLeaf(node.second, 'last')
+}
+
+/**
+ * Navigate directionally from a pane within the split tree.
+ * Returns the target pane ID, or null if the pane is at the tree boundary in that direction.
+ */
+export function navigateDirection(tree: SplitNode, currentId: string, dir: NavDirection): string | null {
+  return walk(tree, currentId, dir)
+}
+
+function walk(node: SplitNode, currentId: string, dir: NavDirection): string | null {
+  if (node.type === 'leaf') return null
+
+  const axis: Direction = (dir === 'left' || dir === 'right') ? 'horizontal' : 'vertical'
+  const goingForward = dir === 'right' || dir === 'down'
+
+  if (node.direction === axis) {
+    const [from, to] = goingForward ? [node.first, node.second] : [node.second, node.first]
+
+    if (containsPane(from, currentId)) {
+      // Try to go deeper in 'from' first
+      const deeper = walk(from, currentId, dir)
+      if (deeper) return deeper
+      // At the edge of 'from' — cross into 'to'
+      return edgeLeaf(to, goingForward ? 'first' : 'last')
+    }
+    if (containsPane(to, currentId)) {
+      return walk(to, currentId, dir)
+    }
+  } else {
+    // Split axis doesn't match nav direction — recurse into whichever side has the pane
+    if (containsPane(node.first, currentId)) return walk(node.first, currentId, dir)
+    if (containsPane(node.second, currentId)) return walk(node.second, currentId, dir)
+  }
+
+  return null
+}

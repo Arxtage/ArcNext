@@ -107,6 +107,11 @@ export function focusTerminal(paneId: string): void {
   terminals.get(paneId)?.term.focus()
 }
 
+/** Write data directly to the PTY (for sending escape sequences) */
+export function writeToTerminalPTY(paneId: string, data: string): void {
+  window.arcnext.pty.write(paneId, data)
+}
+
 /** Destroy the terminal and kill its PTY. Only call on explicit user close. */
 export function destroyTerminal(paneId: string): void {
   const managed = terminals.get(paneId)

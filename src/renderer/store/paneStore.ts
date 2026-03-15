@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
-  SplitNode, leaf, splitNode, removeNode, allPaneIds, adjacentPaneId, Direction
+  SplitNode, leaf, splitNode, removeNode, allPaneIds, adjacentPaneId, Direction,
+  navigateDirection, NavDirection
 } from '../model/splitTree'
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
 
@@ -44,6 +45,7 @@ interface PaneStore {
   setActivePaneInWorkspace: (paneId: string) => void
   focusNext: () => void
   focusPrev: () => void
+  navigateDir: (dir: NavDirection) => void
   setPaneTitle: (id: string, title: string) => void
   setTree: (tree: SplitNode) => void
 }
@@ -188,6 +190,35 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     if (!ws) return
     const prev = adjacentPaneId(ws.tree, ws.activePaneId, -1)
     get().setActivePaneInWorkspace(prev)
+  },
+
+  navigateDir: (dir) => {
+    const { workspaces, activeWorkspaceId } = get()
+    const wsIdx = workspaces.findIndex((w) => w.id === activeWorkspaceId)
+    const ws = workspaces[wsIdx]
+    if (!ws) return
+
+    // Try navigating within the current workspace's split tree
+    const target = navigateDirection(ws.tree, ws.activePaneId, dir)
+    if (target) {
+      get().setActivePaneInWorkspace(target)
+      return
+    }
+
+    // At the boundary — cross to adjacent workspace on left/right
+    if (dir === 'left' || dir === 'up') {
+      const prevIdx = wsIdx - 1
+      if (prevIdx >= 0) {
+        const prevWs = workspaces[prevIdx]
+        set({ activeWorkspaceId: prevWs.id })
+      }
+    } else {
+      const nextIdx = wsIdx + 1
+      if (nextIdx < workspaces.length) {
+        const nextWs = workspaces[nextIdx]
+        set({ activeWorkspaceId: nextWs.id })
+      }
+    }
   },
 
   setPaneTitle: (id, title) => {
