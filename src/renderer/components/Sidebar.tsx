@@ -34,6 +34,7 @@ export default function Sidebar() {
   const switchWorkspace = usePaneStore((s) => s.switchWorkspace)
   const addWorkspace = usePaneStore((s) => s.addWorkspace)
   const removeWorkspace = usePaneStore((s) => s.removeWorkspace)
+  const closePaneInWorkspace = usePaneStore((s) => s.closePaneInWorkspace)
   const mergeWorkspaces = usePaneStore((s) => s.mergeWorkspaces)
   const separateWorkspace = usePaneStore((s) => s.separateWorkspace)
   const setWorkspaceColor = usePaneStore((s) => s.setWorkspaceColor)
@@ -132,6 +133,7 @@ export default function Sidebar() {
             isDropTarget={ws.id === dragOverId && ws.id !== dragSourceId}
             onSelect={() => switchWorkspace(ws.id)}
             onClose={() => removeWorkspace(ws.id)}
+            onClosePane={(paneId) => closePaneInWorkspace(ws.id, paneId)}
             onDoubleClick={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
               setContextMenu(null)
@@ -218,6 +220,7 @@ interface WorkspaceRowProps {
   isDropTarget: boolean
   onSelect: () => void
   onClose: () => void
+  onClosePane: (paneId: string) => void
   onDoubleClick: (e: React.MouseEvent) => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent) => void
@@ -229,7 +232,7 @@ interface WorkspaceRowProps {
 
 function WorkspaceRow({
   workspace, panes, collapsed, isActive, isDragging, isDropTarget,
-  onSelect, onClose, onDoubleClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+  onSelect, onClose, onClosePane, onDoubleClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   onContextMenu
 }: WorkspaceRowProps) {
   const paneIds = allPaneIds(workspace.tree)
@@ -282,17 +285,28 @@ function WorkspaceRow({
           {paneInfos.map((p) => (
             <span key={p.id} className={`ws-pill ${p.id === workspace.activePaneId ? 'pill-active' : ''}`}>
               {formatTitle(p.title)}
+              {isActive && (
+                <button
+                  className="pill-close"
+                  draggable={false}
+                  onClick={(e) => { e.stopPropagation(); onClosePane(p.id) }}
+                >
+                  &times;
+                </button>
+              )}
             </span>
           ))}
         </div>
       )}
-      <button
-        className="ws-close"
-        draggable={false}
-        onClick={(e) => { e.stopPropagation(); onClose() }}
-      >
-        &times;
-      </button>
+      {!(isActive && !isSinglePane) && (
+        <button
+          className="ws-close"
+          draggable={false}
+          onClick={(e) => { e.stopPropagation(); onClose() }}
+        >
+          &times;
+        </button>
+      )}
     </div>
   )
 }

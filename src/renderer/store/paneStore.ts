@@ -49,7 +49,8 @@ interface PaneStore {
   separateWorkspace: (workspaceId: string) => void
   setWorkspaceColor: (id: string, color: string | undefined) => void
 
-  // Pane actions (on active workspace)
+  // Pane actions
+  closePaneInWorkspace: (workspaceId: string, paneId: string) => void
   splitActive: (direction: Direction) => void
   closePane: (id: string) => void
   setActivePaneInWorkspace: (paneId: string) => void
@@ -189,6 +190,41 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     set({
       workspaces: newWorkspaces,
       activeWorkspaceId: workspaceId
+    })
+  },
+
+  closePaneInWorkspace: (workspaceId, paneId) => {
+    const { workspaces, panes } = get()
+    const ws = workspaces.find((w) => w.id === workspaceId)
+    if (!ws) return
+
+    const ids = allPaneIds(ws.tree)
+    if (ids.length <= 1) {
+      get().removeWorkspace(workspaceId)
+      return
+    }
+
+    const newTree = removeNode(ws.tree, paneId)
+    if (!newTree) return
+
+    destroyTerminal(paneId)
+
+    const newPanes = new Map(panes)
+    newPanes.delete(paneId)
+
+    const newActivePaneId = paneId === ws.activePaneId
+      ? adjacentPaneId(ws.tree, paneId, -1)
+      : ws.activePaneId
+
+    const updatedWs: Workspace = {
+      ...ws,
+      tree: newTree,
+      activePaneId: newActivePaneId
+    }
+
+    set({
+      workspaces: workspaces.map((w) => w.id === workspaceId ? updatedWs : w),
+      panes: newPanes
     })
   },
 
