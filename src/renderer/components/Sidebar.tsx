@@ -114,10 +114,12 @@ export default function Sidebar() {
           onClick={toggleSidebar}
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="1" y="2" width="14" height="11" rx="2" />
-            <polyline points="4,6 7,8 4,10" fill="none" />
-            <line x1="8" y1="10" x2="12" y2="10" />
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="4" y="2" width="8" height="2" />
+            <rect x="4" y="4" width="3" height="2" />
+            <rect x="4" y="6" width="8" height="2" />
+            <rect x="9" y="8" width="3" height="2" />
+            <rect x="4" y="10" width="8" height="2" />
           </svg>
         </button>
       </div>
