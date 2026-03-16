@@ -80,8 +80,6 @@ body,
     padding: var(--sb-gap);
     display: flex;
     justify-content: center;
-    border-left: none !important;
-    padding-left: var(--sb-gap) !important;
     margin-bottom: 0;
 }
 
@@ -144,7 +142,7 @@ body,
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 4px 8px;
+    padding: 4px 10px;
     -webkit-app-region: no-drag;
 }
 
@@ -164,7 +162,6 @@ body,
     margin-bottom: 2px;
     border-radius: 8px;
     border: none;
-    border-left: 3px solid transparent;
     background: none;
     color: #888;
     font-size: 13px;
@@ -202,20 +199,20 @@ body,
     padding: 0 10px;
     margin-bottom: 2px;
     border-radius: 8px;
-    border-left: 3px solid var(--ws-color, transparent);
+    background: color-mix(in srgb, var(--ws-color, transparent) 15%, transparent);
     cursor: pointer;
     display: flex;
     align-items: center;
     overflow: hidden;
-    transition: background 0.15s;
+    transition: background 0.15s, color 0.15s;
 }
 
 .ws-row:hover {
-    background: #1e1e1e;
+    background: color-mix(in srgb, var(--ws-color, #1e1e1e) 25%, #1e1e1e);
 }
 
 .ws-row.active {
-    background: #242424;
+    background: color-mix(in srgb, var(--ws-color, #242424) 30%, #242424);
 }
 
 .ws-row.ws-dragging {
@@ -291,7 +288,29 @@ body,
 }
 
 .ws-row:has(.ws-multi) {
-    padding: 3px 3px 3px 0;
+    padding: 3px;
+}
+
+/* Single-pane colored rows — bright like a pill */
+.ws-row:has(.ws-single) {
+    background: color-mix(in srgb, var(--ws-color, transparent) 75%, transparent);
+    color: var(--ws-text, inherit);
+}
+
+.ws-row:has(.ws-single):hover {
+    background: color-mix(in srgb, var(--ws-color, #1e1e1e) 80%, #1e1e1e);
+}
+
+.ws-row:has(.ws-single).active {
+    background: color-mix(in srgb, var(--ws-color, #242424) 90%, #242424);
+}
+
+.ws-row:has(.ws-single) .ws-icon {
+    color: var(--ws-text, var(--ws-color, #74c0fc));
+}
+
+.ws-row:has(.ws-single) .ws-close {
+    color: var(--ws-text, #555);
 }
 
 /* Multi-pane workspace — concatenated pills */
@@ -309,7 +328,8 @@ body,
     flex: 1;
     min-width: 0;
     padding: 0 8px;
-    background: #1e1e1e;
+    color: var(--ws-text, inherit);
+    background: color-mix(in srgb, var(--ws-color, transparent) 75%, #1e1e1e);
     border-radius: 6px;
     font-size: 12px;
     text-align: left;
@@ -325,7 +345,7 @@ body,
 }
 
 .ws-pill.pill-active {
-    background: #2a2a2a;
+    background: color-mix(in srgb, var(--ws-color, transparent) 90%, #2a2a2a);
     border-radius: 6px;
 }
 
@@ -338,7 +358,7 @@ body,
     height: 16px;
     background: none;
     border: none;
-    color: #555;
+    color: var(--ws-text, #555);
     font-size: 11px;
     line-height: 16px;
     text-align: center;
@@ -474,6 +494,44 @@ body,
 
 .split-divider.vertical {
     cursor: row-resize;
+}
+
+/* ── Pane drag handle ── */
+.pane-drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    z-index: 2;
+    cursor: grab;
+    border-radius: 8px 8px 0 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.pane-drag-handle:hover {
+    opacity: 1;
+    background: linear-gradient(to bottom, rgba(116, 192, 252, 0.3), transparent);
+}
+
+.pane-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* ── Pane drop zone overlay ── */
+.pane-drop-zone {
+    position: absolute;
+    z-index: 3;
+    background: rgba(116, 192, 252, 0.12);
+    border: 2px solid rgba(116, 192, 252, 0.4);
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+/* Dim the pane being dragged */
+.split-pane-wrapper.pane-dragging {
+    opacity: 0.4;
 }
 
 /* ── Terminal pane ── */
