@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePaneStore, Workspace, PaneInfo } from '../store/paneStore'
 import { allPaneIds } from '../model/splitTree'
 
@@ -38,6 +38,7 @@ export default function Sidebar() {
   const mergeWorkspaces = usePaneStore((s) => s.mergeWorkspaces)
   const separateWorkspace = usePaneStore((s) => s.separateWorkspace)
   const setWorkspaceColor = usePaneStore((s) => s.setWorkspaceColor)
+  const setWorkspaceName = usePaneStore((s) => s.setWorkspaceName)
   const sidebarWidth = usePaneStore((s) => s.sidebarWidth)
   const sidebarCollapsed = usePaneStore((s) => s.sidebarCollapsed)
   const toggleSidebar = usePaneStore((s) => s.toggleSidebar)
@@ -47,6 +48,7 @@ export default function Sidebar() {
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; workspaceId: string } | null>(null)
   const [colorPicker, setColorPicker] = useState<{ x: number; y: number; workspaceId: string } | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!contextMenu) return
@@ -136,11 +138,19 @@ export default function Sidebar() {
             onSelect={() => switchWorkspace(ws.id)}
             onClose={() => removeWorkspace(ws.id)}
             onClosePane={(paneId) => closePaneInWorkspace(ws.id, paneId)}
-            onDoubleClick={(e) => {
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              setContextMenu(null)
-              setColorPicker({ x: rect.right + 4, y: rect.top, workspaceId: ws.id })
+            isEditing={editingId === ws.id}
+            onDoubleClick={() => {
+              if (!sidebarCollapsed) {
+                setContextMenu(null)
+                setColorPicker(null)
+                setEditingId(ws.id)
+              }
             }}
+            onRename={(name) => {
+              setWorkspaceName(ws.id, name)
+              setEditingId(null)
+            }}
+            onCancelRename={() => setEditingId(null)}
             onDragStart={() => setDragSourceId(ws.id)}
             onDragOver={(e) => {
               e.preventDefault()
@@ -165,9 +175,9 @@ export default function Sidebar() {
               setDragOverId(null)
             }}
             onContextMenu={(e) => {
-              if (ws.tree.type !== 'split') return
               e.preventDefault()
               setColorPicker(null)
+              setEditingId(null)
               setContextMenu({ x: e.clientX, y: e.clientY, workspaceId: ws.id })
             }}
           />
@@ -176,23 +186,47 @@ export default function Sidebar() {
           {sidebarCollapsed ? '+' : '+ New Workspace'}
         </button>
       </div>
-      {contextMenu && (
-        <div
-          className="ctx-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="ctx-menu-item"
-            onClick={() => {
-              separateWorkspace(contextMenu.workspaceId)
-              setContextMenu(null)
-            }}
+      {contextMenu && (() => {
+        const ctxWs = workspaces.find((w) => w.id === contextMenu.workspaceId)
+        return (
+          <div
+            className="ctx-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
           >
-            Separate
-          </button>
-        </div>
-      )}
+            <button
+              className="ctx-menu-item"
+              onClick={() => {
+                setEditingId(contextMenu.workspaceId)
+                setContextMenu(null)
+              }}
+            >
+              Rename
+            </button>
+            <button
+              className="ctx-menu-item"
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                setColorPicker({ x: rect.right + 4, y: rect.top, workspaceId: contextMenu.workspaceId })
+                setContextMenu(null)
+              }}
+            >
+              Color
+            </button>
+            {ctxWs && ctxWs.tree.type === 'split' && (
+              <button
+                className="ctx-menu-item"
+                onClick={() => {
+                  separateWorkspace(contextMenu.workspaceId)
+                  setContextMenu(null)
+                }}
+              >
+                Separate
+              </button>
+            )}
+          </div>
+        )
+      })()}
       {colorPicker && (
         <ColorPicker
           x={colorPicker.x}
@@ -218,10 +252,13 @@ interface WorkspaceRowProps {
   isActive: boolean
   isDragging: boolean
   isDropTarget: boolean
+  isEditing: boolean
   onSelect: () => void
   onClose: () => void
   onClosePane: (paneId: string) => void
-  onDoubleClick: (e: React.MouseEvent) => void
+  onDoubleClick: () => void
+  onRename: (name: string) => void
+  onCancelRename: () => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
@@ -231,14 +268,20 @@ interface WorkspaceRowProps {
 }
 
 function WorkspaceRow({
-  workspace, panes, collapsed, isActive, isDragging, isDropTarget,
-  onSelect, onClose, onClosePane, onDoubleClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
-  onContextMenu
+  workspace, panes, collapsed, isActive, isDragging, isDropTarget, isEditing,
+  onSelect, onClose, onClosePane, onDoubleClick, onRename, onCancelRename,
+  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu
 }: WorkspaceRowProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const paneIds = allPaneIds(workspace.tree)
   const paneInfos = paneIds.map((id) => panes.get(id)).filter(Boolean) as PaneInfo[]
   const isSinglePane = paneInfos.length === 1
   const wsColor = workspace.color
+
+  const hasCustomName = workspace.name && !workspace.name.startsWith('Workspace ')
+  const defaultTitle = paneInfos[0]?.title || 'shell'
+  const displayTitle = hasCustomName ? workspace.name : defaultTitle
+  const initial = (displayTitle === 'shell' ? 'S' : displayTitle.split('/').pop() || 'S').charAt(0).toUpperCase()
 
   const className = [
     'ws-row',
@@ -247,8 +290,17 @@ function WorkspaceRow({
     isDropTarget && 'ws-drop-target'
   ].filter(Boolean).join(' ')
 
-  const title = paneInfos[0]?.title || 'shell'
-  const initial = (title === 'shell' ? 'S' : title.split('/').pop() || 'S').charAt(0).toUpperCase()
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  const handleRenameSubmit = (value: string) => {
+    const trimmed = value.trim()
+    onRename(trimmed || '')
+  }
 
   return (
     <div
@@ -256,7 +308,7 @@ function WorkspaceRow({
       style={wsColor ? { '--ws-color': wsColor } as React.CSSProperties : undefined}
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
-      draggable
+      draggable={!isEditing}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move'
         onDragStart()
@@ -266,11 +318,36 @@ function WorkspaceRow({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
       onContextMenu={onContextMenu}
-      title={collapsed ? title : undefined}
+      title={collapsed ? displayTitle : undefined}
     >
       {collapsed ? (
         <div className="ws-collapsed-icon">
           {initial}
+        </div>
+      ) : isEditing ? (
+        <div className="ws-single">
+          <span className="ws-icon">&#9632;</span>
+          <input
+            ref={inputRef}
+            className="ws-rename-input"
+            defaultValue={hasCustomName ? workspace.name : ''}
+            placeholder={formatTitle(defaultTitle)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') {
+                handleRenameSubmit(e.currentTarget.value)
+              } else if (e.key === 'Escape') {
+                onCancelRename()
+              }
+            }}
+            onBlur={(e) => handleRenameSubmit(e.currentTarget.value)}
+          />
+        </div>
+      ) : hasCustomName ? (
+        <div className="ws-single">
+          <span className="ws-icon">&#9632;</span>
+          <span className="ws-title">{workspace.name}</span>
         </div>
       ) : isSinglePane ? (
         <div className="ws-single">
@@ -295,7 +372,7 @@ function WorkspaceRow({
           ))}
         </div>
       )}
-      {!(isActive && !isSinglePane) && (
+      {!(isActive && !isSinglePane) && !isEditing && (
         <button
           className="ws-close"
           draggable={false}

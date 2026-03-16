@@ -276,6 +276,20 @@ body,
     white-space: nowrap;
 }
 
+.ws-rename-input {
+    background: none;
+    border: 1px solid #74c0fc;
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-size: 13px;
+    padding: 0 4px;
+    height: 22px;
+    outline: none;
+    width: 100%;
+    min-width: 0;
+    font-family: inherit;
+}
+
 .ws-row:has(.ws-multi) {
     padding: 3px 3px 3px 0;
 }

@@ -48,6 +48,7 @@ interface PaneStore {
   mergeWorkspaces: (targetId: string, sourceId: string, direction: Direction) => void
   separateWorkspace: (workspaceId: string) => void
   setWorkspaceColor: (id: string, color: string | undefined) => void
+  setWorkspaceName: (id: string, name: string) => void
 
   // Pane actions
   closePaneInWorkspace: (workspaceId: string, paneId: string) => void
@@ -156,6 +157,13 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const { workspaces } = get()
     set({
       workspaces: workspaces.map((w) => w.id === id ? { ...w, color } : w)
+    })
+  },
+
+  setWorkspaceName: (id, name) => {
+    const { workspaces } = get()
+    set({
+      workspaces: workspaces.map((w) => w.id === id ? { ...w, name } : w)
     })
   },
 
