@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import SplitView from './components/SplitView'
 import Sidebar from './components/Sidebar'
 import DirPicker from './components/DirPicker'
+import InlineAutocomplete from './components/InlineAutocomplete'
 import { usePaneStore, useActiveWorkspace } from './store/paneStore'
+import { useAutocompleteStore } from './store/autocompleteStore'
 import { setTitleChangeCallback, setCwdChangeCallback, writeToTerminalPTY } from './model/terminalManager'
 import { NavDirection } from './model/splitTree'
 
@@ -61,6 +63,7 @@ export default function App() {
       if (meta && alt && e.key in ARROW_TO_DIR) {
         e.preventDefault()
         e.stopImmediatePropagation()
+        useAutocompleteStore.getState().deactivate()
         navigateDir(ARROW_TO_DIR[e.key])
         return
       }
@@ -168,6 +171,7 @@ export default function App() {
           </div>
         ))}
       </div>
+      <InlineAutocomplete />
       {dirPickerOpen && <DirPicker onClose={() => setDirPickerOpen(false)} />}
     </div>
   )
