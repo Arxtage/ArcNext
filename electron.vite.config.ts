@@ -7,7 +7,7 @@ function copyShellIntegration() {
     name: 'copy-shell-integration',
     writeBundle() {
       mkdirSync('out/main/shell-integration', { recursive: true })
-      copyFileSync('src/main/shell-integration/zshrc', 'out/main/shell-integration/.zshrc')
+      copyFileSync('src/main/shell-integration/zshrc', 'out/main/shell-integration/.zshenv')
     }
   }
 }

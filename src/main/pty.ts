@@ -5,7 +5,10 @@ import { join } from 'path'
 
 const ptys = new Map<string, pty.IPty>()
 
-const shellIntegrationDir = join(__dirname, 'shell-integration')
+const shellIntegrationDir = join(
+  __dirname.replace('app.asar', 'app.asar.unpacked'),
+  'shell-integration'
+)
 
 export function setupPTY(window: BrowserWindow): void {
   ipcMain.on('pty:create', (_event, paneId: string, cwd?: string) => {
