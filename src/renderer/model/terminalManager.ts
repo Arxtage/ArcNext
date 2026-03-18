@@ -126,8 +126,16 @@ export function createTerminal(paneId: string): Terminal {
     const store = useAutocompleteStore.getState()
     const isActive = (store.pending || store.active) && store.paneId === paneId
 
-    // Trigger on @ keydown (unmodified, not during autocomplete)
-    if (!isActive && e.type === 'keydown' && e.key === '@' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    // Trigger on @ keydown (not during autocomplete for this pane)
+    // Allow Ctrl+Alt (AltGr) since many non-US keyboards produce @ via AltGr
+    if (!isActive && e.type === 'keydown' && e.key === '@' && !e.metaKey) {
+      // Flush any existing session for a different pane before starting
+      if ((store.pending || store.active) && store.paneId && store.paneId !== paneId) {
+        const oldPaneId = store.paneId
+        const buffered = '@' + store.query
+        window.arcnext.pty.write(oldPaneId, buffered)
+        store.deactivate()
+      }
       const cursor = getCursorPixelPosition(term)
       store.startPending(paneId, cursor)
 
