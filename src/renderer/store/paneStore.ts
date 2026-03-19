@@ -4,7 +4,7 @@ import {
   navigateDirection, NavDirection
 } from '../model/splitTree'
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
-import { destroyBrowserView } from '../model/browserManager'
+import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo } from '../../shared/types'
 
 let nextPaneId = 1
@@ -26,6 +26,12 @@ export interface Workspace {
   tree: SplitNode
   activePaneId: string
   color?: string
+}
+
+interface BrowserPaneOptions {
+  paneId?: string
+  title?: string
+  isLoading?: boolean
 }
 
 interface PaneStore {
@@ -61,11 +67,15 @@ interface PaneStore {
   setTree: (tree: SplitNode) => void
 
   // Browser pane actions
-  addBrowserWorkspace: (url: string) => void
+  addBrowserWorkspace: (url: string, options?: BrowserPaneOptions) => void
   splitActiveBrowser: (direction: Direction, url: string) => void
   setBrowserPaneUrl: (id: string, url: string) => void
   setBrowserPaneNavState: (id: string, canGoBack: boolean, canGoForward: boolean) => void
   setBrowserPaneLoading: (id: string, isLoading: boolean) => void
+
+  // Dock/undock
+  undockBrowserPane: (paneId: string) => void
+  removeUndockedBrowserPane: (paneId: string) => void
 }
 
 function makeTerminalPane(): TerminalPaneInfo {
@@ -74,9 +84,17 @@ function makeTerminalPane(): TerminalPaneInfo {
   return { type: 'terminal', id, title: 'shell', cwd: '' }
 }
 
-function makeBrowserPane(url: string): BrowserPaneInfo {
-  const id = genPaneId()
-  return { type: 'browser', id, title: url, url, canGoBack: false, canGoForward: false, isLoading: true }
+function makeBrowserPane(url: string, options: BrowserPaneOptions = {}): BrowserPaneInfo {
+  const id = options.paneId ?? genPaneId()
+  return {
+    type: 'browser',
+    id,
+    title: options.title || url,
+    url,
+    canGoBack: false,
+    canGoForward: false,
+    isLoading: options.isLoading ?? true
+  }
 }
 
 function destroyPane(pane: PaneInfo): void {
@@ -395,9 +413,9 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     })
   },
 
-  addBrowserWorkspace: (url) => {
+  addBrowserWorkspace: (url, options = {}) => {
     const { workspaces, panes } = get()
-    const pane = makeBrowserPane(url)
+    const pane = makeBrowserPane(url, options)
     const id = genWorkspaceId()
     const workspace: Workspace = {
       id,
@@ -460,6 +478,61 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const newPanes = new Map(panes)
     newPanes.set(id, { ...pane, isLoading })
     set({ panes: newPanes })
+  },
+
+  undockBrowserPane: (paneId) => {
+    void undockBrowserView(paneId).catch(() => {})
+  },
+
+  removeUndockedBrowserPane: (paneId) => {
+    const { workspaces, activeWorkspaceId, panes } = get()
+
+    const wsIndex = workspaces.findIndex((w) => allPaneIds(w.tree).includes(paneId))
+    if (wsIndex === -1) return
+
+    const ws = workspaces[wsIndex]
+    const ids = allPaneIds(ws.tree)
+    const newPanes = new Map(panes)
+    newPanes.delete(paneId)
+
+    if (ids.length <= 1) {
+      if (workspaces.length <= 1) {
+        const replacement = makeWorkspace()
+        newPanes.set(replacement.pane.id, replacement.pane)
+        set({
+          workspaces: [replacement.workspace],
+          activeWorkspaceId: replacement.workspace.id,
+          panes: newPanes
+        })
+        return
+      }
+
+      const remaining = workspaces.filter((w) => w.id !== ws.id)
+      const newActive = ws.id === activeWorkspaceId
+        ? remaining[Math.max(0, wsIndex - 1)].id
+        : activeWorkspaceId
+
+      set({ workspaces: remaining, activeWorkspaceId: newActive, panes: newPanes })
+      return
+    }
+
+    const newTree = removeNode(ws.tree, paneId)
+    if (!newTree) return
+
+    const newActivePaneId = paneId === ws.activePaneId
+      ? adjacentPaneId(ws.tree, paneId, -1)
+      : ws.activePaneId
+
+    const updatedWs: Workspace = {
+      ...ws,
+      tree: newTree,
+      activePaneId: newActivePaneId
+    }
+
+    set({
+      workspaces: workspaces.map((w) => w.id === ws.id ? updatedWs : w),
+      panes: newPanes
+    })
   }
 }))
 

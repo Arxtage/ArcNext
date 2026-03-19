@@ -24,6 +24,27 @@ export interface DirEntry {
   score: number
 }
 
+export interface ExternalBrowserWindowInfo {
+  id: number
+  url: string
+  title: string
+}
+
+export interface BrowserDockedPayload {
+  paneId: string
+  url: string
+  title: string
+}
+
+export interface BrowserUndockedPayload {
+  paneId: string
+}
+
+export interface ExternalBrowserShellState {
+  url: string
+  title: string
+}
+
 export interface IPCChannels {
   'pty:create': (paneId: string, cwd?: string) => void
   'pty:write': (paneId: string, data: string) => void
@@ -53,6 +74,14 @@ export interface IPCChannels {
   'browser:loadFailed': (paneId: string, errorCode: number, errorDesc: string) => void
   'browser:focused': (paneId: string) => void
   // External browser windows
-  'browser:listExternalWindows': () => Promise<{ id: number; url: string; title: string }[]>
-  'browser:dockWindow': (windowId: number) => Promise<{ url: string; title: string } | null>
+  'browser:listExternalWindows': () => Promise<ExternalBrowserWindowInfo[]>
+  'browser:dockWindow': (windowId: number) => Promise<BrowserDockedPayload | null>
+  // Dock/undock
+  'browser:undock': (paneId: string) => Promise<boolean>
+  'browser:docked': (payload: BrowserDockedPayload) => void
+  'browser:undocked': (payload: BrowserUndockedPayload) => void
+  // External shell window
+  'externalBrowser:getState': () => Promise<ExternalBrowserShellState | null>
+  'externalBrowser:dockCurrentWindow': () => void
+  'externalBrowser:stateChanged': (state: ExternalBrowserShellState) => void
 }

@@ -1,3 +1,10 @@
+import type {
+  BrowserDockedPayload,
+  BrowserUndockedPayload,
+  ExternalBrowserShellState,
+  ExternalBrowserWindowInfo
+} from '../shared/types'
+
 interface ArcNextAPI {
   sidebar: {
     setTrafficLightsVisible(visible: boolean): void
@@ -37,14 +44,24 @@ interface ArcNextAPI {
     onNavStateChanged(cb: (paneId: string, canGoBack: boolean, canGoForward: boolean) => void): () => void
     onLoadFailed(cb: (paneId: string, errorCode: number, errorDesc: string) => void): () => void
     onFocused(cb: (paneId: string) => void): () => void
-    listExternalWindows(): Promise<{ id: number; url: string; title: string }[]>
-    dockWindow(windowId: number): Promise<{ url: string; title: string } | null>
+    listExternalWindows(): Promise<ExternalBrowserWindowInfo[]>
+    dockWindow(windowId: number): Promise<BrowserDockedPayload | null>
+    undockPane(paneId: string): Promise<boolean>
+    onDocked(cb: (payload: BrowserDockedPayload) => void): () => void
+    onUndocked(cb: (payload: BrowserUndockedPayload) => void): () => void
   }
   getPathForFile(file: File): string
+}
+
+interface ExternalBrowserShellAPI {
+  getState(): Promise<ExternalBrowserShellState | null>
+  dock(): void
+  onStateChanged(cb: (state: ExternalBrowserShellState) => void): () => void
 }
 
 declare global {
   interface Window {
     arcnext: ArcNextAPI
+    externalBrowser: ExternalBrowserShellAPI
   }
 }

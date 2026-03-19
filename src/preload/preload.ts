@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron'
+import type { BrowserDockedPayload, BrowserUndockedPayload } from '../shared/types'
 
 type Callback = (...args: unknown[]) => void
 
@@ -90,7 +91,19 @@ const api = {
     listExternalWindows: () =>
       ipcRenderer.invoke('browser:listExternalWindows'),
     dockWindow: (windowId: number) =>
-      ipcRenderer.invoke('browser:dockWindow', windowId)
+      ipcRenderer.invoke('browser:dockWindow', windowId),
+    undockPane: (paneId: string) =>
+      ipcRenderer.invoke('browser:undock', paneId),
+    onDocked: (cb: (payload: BrowserDockedPayload) => void) => {
+      const handler = (_event: IpcRendererEvent, payload: BrowserDockedPayload) => cb(payload)
+      ipcRenderer.on('browser:docked', handler)
+      return () => { ipcRenderer.removeListener('browser:docked', handler) }
+    },
+    onUndocked: (cb: (payload: BrowserUndockedPayload) => void) => {
+      const handler = (_event: IpcRendererEvent, payload: BrowserUndockedPayload) => cb(payload)
+      ipcRenderer.on('browser:undocked', handler)
+      return () => { ipcRenderer.removeListener('browser:undocked', handler) }
+    }
   }
 }
 

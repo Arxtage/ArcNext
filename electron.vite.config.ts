@@ -1,6 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { copyFileSync, mkdirSync } from 'fs'
+import { resolve } from 'path'
 
 function copyShellIntegration() {
   return {
@@ -27,7 +28,10 @@ export default defineConfig({
     build: {
       outDir: 'out/preload',
       rollupOptions: {
-        input: 'src/preload/preload.ts'
+        input: {
+          preload: resolve(__dirname, 'src/preload/preload.ts'),
+          externalShellPreload: resolve(__dirname, 'src/preload/externalShellPreload.ts')
+        }
       }
     }
   },
@@ -37,7 +41,10 @@ export default defineConfig({
     build: {
       outDir: 'out/renderer',
       rollupOptions: {
-        input: 'src/renderer/index.html'
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          externalShell: resolve(__dirname, 'src/renderer/external-shell.html')
+        }
       }
     }
   }

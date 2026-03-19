@@ -1,14 +1,57 @@
-import { BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
+import { BrowserWindow, WebContentsView, ipcMain } from 'electron'
 import { createExternalBrowserWindow } from './externalBrowserWindows'
+import { createBrowserView, normalizeBrowserUrl, wireBrowserViewEvents } from './browserViewUtils'
 
 interface ManagedBrowserView {
   view: WebContentsView
   paneId: string
   bounds: { x: number; y: number; width: number; height: number }
+  cleanup: (() => void) | null
 }
 
 const views = new Map<string, ManagedBrowserView>()
 let win: BrowserWindow | null = null
+
+function wireViewEvents(view: WebContentsView, paneId: string): () => void {
+  if (!win) return () => {}
+
+  const mainWin = win
+  return wireBrowserViewEvents(view, {
+    onTitle: (title) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:titleChanged', paneId, title)
+      }
+    },
+    onUrl: (url) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:urlChanged', paneId, url)
+      }
+    },
+    onLoading: (loading) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:loadingChanged', paneId, loading)
+      }
+    },
+    onNavState: (canGoBack, canGoForward) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:navStateChanged', paneId, canGoBack, canGoForward)
+      }
+    },
+    onLoadFailed: (errorCode, errorDescription) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:loadFailed', paneId, errorCode, errorDescription)
+      }
+    },
+    onFocus: () => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:focused', paneId)
+      }
+    },
+    onOpenExternal: (url) => {
+      createExternalBrowserWindow(url)
+    }
+  })
+}
 
 export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
   win = mainWindow
@@ -16,66 +59,11 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
   ipcMain.on('browser:create', (_e, paneId: string, url: string) => {
     if (!win || win.isDestroyed() || views.has(paneId)) return
 
-    const view = new WebContentsView({
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-        session: session.fromPartition('persist:browser')
-      }
-    })
+    const view = createBrowserView()
+    const cleanup = wireViewEvents(view, paneId)
+    views.set(paneId, { view, paneId, bounds: { x: 0, y: 0, width: 0, height: 0 }, cleanup })
 
-    views.set(paneId, { view, paneId, bounds: { x: 0, y: 0, width: 0, height: 0 } })
-
-    const wc = view.webContents
-
-    wc.on('page-title-updated', (_ev, title) => {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('browser:titleChanged', paneId, title)
-      }
-    })
-
-    const sendNavUpdate = (navUrl: string): void => {
-      if (!win || win.isDestroyed()) return
-      win.webContents.send('browser:urlChanged', paneId, navUrl)
-      win.webContents.send('browser:navStateChanged', paneId, wc.canGoBack(), wc.canGoForward())
-    }
-
-    wc.on('did-navigate', (_ev, navUrl) => sendNavUpdate(navUrl))
-    wc.on('did-navigate-in-page', (_ev, navUrl) => sendNavUpdate(navUrl))
-
-    wc.on('did-start-loading', () => {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('browser:loadingChanged', paneId, true)
-      }
-    })
-
-    wc.on('did-stop-loading', () => {
-      if (!win || win.isDestroyed()) return
-      win.webContents.send('browser:loadingChanged', paneId, false)
-      win.webContents.send('browser:navStateChanged', paneId, wc.canGoBack(), wc.canGoForward())
-    })
-
-    wc.on('did-fail-load', (_ev, errorCode, errorDescription) => {
-      if (errorCode === -3) return // Aborted, ignore
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('browser:loadFailed', paneId, errorCode, errorDescription)
-      }
-    })
-
-    wc.setWindowOpenHandler(({ url: popupUrl }) => {
-      createExternalBrowserWindow(popupUrl)
-      return { action: 'deny' }
-    })
-
-    // Notify renderer when web content gains focus (for pane activation)
-    wc.on('focus', () => {
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('browser:focused', paneId)
-      }
-    })
-
-    wc.loadURL(url)
+    view.webContents.loadURL(url)
   })
 
   ipcMain.on('browser:destroy', (_e, paneId: string) => {
@@ -118,15 +106,7 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
   ipcMain.on('browser:navigate', (_e, paneId: string, url: string) => {
     const managed = views.get(paneId)
     if (!managed) return
-    let normalized = url
-    if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
-      if (url.includes('.') && !url.includes(' ')) {
-        normalized = `https://${url}`
-      } else {
-        normalized = `https://www.google.com/search?q=${encodeURIComponent(url)}`
-      }
-    }
-    managed.view.webContents.loadURL(normalized)
+    managed.view.webContents.loadURL(normalizeBrowserUrl(url))
   })
 
   ipcMain.on('browser:goBack', (_e, paneId: string) => {
@@ -149,11 +129,42 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
 function destroyView(paneId: string): void {
   const managed = views.get(paneId)
   if (!managed) return
+  managed.cleanup?.()
   if (win && !win.isDestroyed()) {
     try { win.contentView.removeChildView(managed.view) } catch { /* not attached */ }
   }
   try { managed.view.webContents.close() } catch { /* already closed */ }
   views.delete(paneId)
+}
+
+export function adoptView(paneId: string, view: WebContentsView): void {
+  const cleanup = wireViewEvents(view, paneId)
+  views.set(paneId, { view, paneId, bounds: { x: 0, y: 0, width: 0, height: 0 }, cleanup })
+
+  // Send initial state to renderer so it picks up current URL/title/nav
+  if (win && !win.isDestroyed()) {
+    const wc = view.webContents
+    const url = wc.getURL()
+    const title = wc.getTitle()
+    win.webContents.send('browser:titleChanged', paneId, title)
+    win.webContents.send('browser:urlChanged', paneId, url)
+    win.webContents.send('browser:loadingChanged', paneId, wc.isLoading())
+    win.webContents.send('browser:navStateChanged', paneId, wc.canGoBack(), wc.canGoForward())
+  }
+}
+
+export function releaseView(paneId: string): WebContentsView | null {
+  const managed = views.get(paneId)
+  if (!managed) return null
+
+  managed.cleanup?.()
+
+  if (win && !win.isDestroyed()) {
+    try { win.contentView.removeChildView(managed.view) } catch { /* not attached */ }
+  }
+
+  views.delete(paneId)
+  return managed.view
 }
 
 export function destroyAllBrowserViews(): void {

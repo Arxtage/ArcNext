@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { openExternalLink } from './openExternalLink'
 import '@xterm/xterm/css/xterm.css'
 
 type TitleCallback = (paneId: string, title: string) => void
@@ -59,7 +60,7 @@ export function createTerminal(paneId: string): Terminal {
 
   const fit = new FitAddon()
   term.loadAddon(fit)
-  term.loadAddon(new WebLinksAddon())
+  term.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)))
 
   // Open terminal into a parked host div immediately so DOM element always exists
   const host = document.createElement('div')

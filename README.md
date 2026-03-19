@@ -18,6 +18,8 @@ The times are changing, i spend more time in terminal than in browser. I run a d
 - **Right-click to separate** — Split merged workspaces back into individual rows
 - **Collapsible sidebar** — Resize handle, traffic light hiding, Cmd+B toggle
 - **Per-pane close buttons** — Hover over a merged workspace row to close individual panes
+- **External browser windows** — Terminal links open in a dedicated browser window shell
+- **Dock / undock browser tabs** — Dock an external website into ArcNext as a new workspace without reloading, or undock it back out to its own window
 
 ## Tech Stack
 
@@ -37,11 +39,17 @@ The times are changing, i spend more time in terminal than in browser. I run a d
 src/
 ├── main/              # Electron main process
 │   ├── main.ts        # Window lifecycle, IPC handlers
+│   ├── browserViewManager.ts
+│   ├── browserViewUtils.ts
+│   ├── externalBrowserWindows.ts
 │   └── pty.ts         # node-pty spawning and management
-├── preload/           # IPC bridge
-│   └── preload.ts     # contextBridge exposing PTY API to renderer
-├── renderer/          # React UI
+├── preload/           # IPC bridges
+│   ├── preload.ts
+│   └── externalShellPreload.ts
+├── renderer/          # React UI + external browser shell UI
 │   ├── App.tsx        # Root component, keyboard shortcuts
+│   ├── external-shell.html
+│   ├── externalShell.ts
 │   ├── components/    # Sidebar, SplitView, TerminalPane
 │   ├── model/         # splitTree (binary tree), terminalManager
 │   ├── store/         # paneStore (Zustand — workspaces, splits, panes)
@@ -89,6 +97,7 @@ npm run package        # build macOS DMG
 | `Cmd+T` | New workspace |
 | `Cmd+D` | Split right |
 | `Cmd+Shift+D` | Split down |
+| `Cmd+Shift+Enter` | Undock active browser pane |
 | `Cmd+W` | Close active pane |
 | `Cmd+B` | Toggle sidebar |
 | `Cmd+1-9` | Switch workspace by index |
@@ -97,6 +106,14 @@ npm run package        # build macOS DMG
 | `Cmd+Left/Right` | Line start / end |
 | `Opt+Backspace` | Delete previous word |
 | `Cmd+Backspace` | Delete to line start |
+
+## External browser controls
+
+- Clicking a link in a terminal opens it in an external browser window.
+- The external browser window has a visible **Dock** button plus a native menu item.
+- **Dock shortcut (external window):** `Cmd+Shift+D` on macOS / `Ctrl+Shift+D` on Windows/Linux.
+- Docking always creates a **new workspace** in ArcNext.
+- Docked browser panes have a visible **Undock** button, and `Cmd+Shift+Enter` undocks the active browser pane.
 
 ## License
 

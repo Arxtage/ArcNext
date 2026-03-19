@@ -280,7 +280,7 @@ function WorkspaceRow({
 
   const hasCustomName = workspace.name && !workspace.name.startsWith('Workspace ')
   const firstPane = paneInfos[0]
-  const defaultTitle = firstPane ? (firstPane.type === 'browser' ? firstPane.url : firstPane.title) || 'shell' : 'shell'
+  const defaultTitle = firstPane ? paneDisplayTitle(firstPane) || 'shell' : 'shell'
   const displayTitle = hasCustomName ? workspace.name : defaultTitle
   const isBrowserWorkspace = firstPane?.type === 'browser'
   const initial = (displayTitle === 'shell' ? 'S' : displayTitle.split('/').pop() || 'S').charAt(0).toUpperCase()
@@ -354,13 +354,13 @@ function WorkspaceRow({
       ) : isSinglePane ? (
         <div className="ws-single">
           <span className="ws-icon">{isBrowserWorkspace ? '\u{1F310}' : '\u25A0'}</span>
-          <span className="ws-title">{formatTitle(firstPane.type === 'browser' ? firstPane.url : firstPane.title)}</span>
+          <span className="ws-title">{formatTitle(paneDisplayTitle(firstPane))}</span>
         </div>
       ) : (
         <div className="ws-multi">
           {paneInfos.map((p) => (
             <span key={p.id} className={`ws-pill ${isActive && p.id === workspace.activePaneId ? 'pill-active' : ''}`}>
-              {p.type === 'browser' ? '\u{1F310} ' : ''}{formatTitle(p.type === 'browser' ? p.url : p.title)}
+              {p.type === 'browser' ? '\u{1F310} ' : ''}{formatTitle(paneDisplayTitle(p))}
               {isActive && (
                 <button
                   className="pill-close"
@@ -387,10 +387,17 @@ function WorkspaceRow({
   )
 }
 
+function paneDisplayTitle(pane: PaneInfo): string {
+  if (pane.type === 'browser') {
+    return pane.title || pane.url
+  }
+  return pane.title
+}
+
 function formatTitle(title: string): string {
   if (!title || title === 'shell') return 'shell'
-  // Truncate long titles, show last path segment if it looks like a path
-  const parts = title.split('/')
+  const looksLikePath = title.startsWith('/') || title.includes('://')
+  const parts = looksLikePath ? title.split('/') : [title]
   const name = parts[parts.length - 1] || title
   return name.length > 18 ? name.slice(0, 16) + '...' : name
 }

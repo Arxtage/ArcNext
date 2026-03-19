@@ -31,6 +31,7 @@ export default function App() {
   const addWorkspace = usePaneStore((s) => s.addWorkspace)
   const setPaneTitle = usePaneStore((s) => s.setPaneTitle)
   const setPaneCwd = usePaneStore((s) => s.setPaneCwd)
+  const addBrowserWorkspace = usePaneStore((s) => s.addBrowserWorkspace)
   const setBrowserPaneUrl = usePaneStore((s) => s.setBrowserPaneUrl)
   const setBrowserPaneNavState = usePaneStore((s) => s.setBrowserPaneNavState)
   const setBrowserPaneLoading = usePaneStore((s) => s.setBrowserPaneLoading)
@@ -38,6 +39,8 @@ export default function App() {
   const switchWorkspace = usePaneStore((s) => s.switchWorkspace)
   const navigateDir = usePaneStore((s) => s.navigateDir)
   const toggleSidebar = usePaneStore((s) => s.toggleSidebar)
+  const undockBrowserPane = usePaneStore((s) => s.undockBrowserPane)
+  const removeUndockedBrowserPane = usePaneStore((s) => s.removeUndockedBrowserPane)
   const workspaces = usePaneStore((s) => s.workspaces)
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
 
@@ -82,16 +85,37 @@ export default function App() {
       }),
       window.arcnext.browser.onFocused((paneId) => {
         setActivePaneInWorkspace(paneId)
+      }),
+      window.arcnext.browser.onDocked(({ paneId, url, title }) => {
+        addBrowserWorkspace(url, { paneId, title, isLoading: false })
+      }),
+      window.arcnext.browser.onUndocked(({ paneId }) => {
+        removeUndockedBrowserPane(paneId)
       })
     ]
     return () => unsubs.forEach((unsub) => unsub())
-  }, [setPaneTitle, setBrowserPaneUrl, setBrowserPaneLoading, setBrowserPaneNavState, setActivePaneInWorkspace])
+  }, [
+    setPaneTitle,
+    addBrowserWorkspace,
+    setBrowserPaneUrl,
+    setBrowserPaneLoading,
+    setBrowserPaneNavState,
+    setActivePaneInWorkspace,
+    removeUndockedBrowserPane
+  ])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey
       const alt = e.altKey
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+
+      // Cmd+Shift+Enter — undock active browser pane
+      if (meta && e.shiftKey && !alt && e.key === 'Enter' && activePaneType === 'browser') {
+        e.preventDefault()
+        if (ws) undockBrowserPane(ws.activePaneId)
+        return
+      }
 
       // Opt+Cmd+Arrow — navigate panes / cross workspace at boundary
       if (meta && alt && e.key in ARROW_TO_DIR) {
@@ -195,7 +219,7 @@ export default function App() {
 
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [splitActive, closePane, addWorkspace, switchWorkspace, navigateDir, toggleSidebar, ws, workspaces, dirPickerOpen, activePaneType])
+  }, [splitActive, closePane, addWorkspace, switchWorkspace, navigateDir, toggleSidebar, undockBrowserPane, ws, workspaces, dirPickerOpen, activePaneType])
 
   return (
     <div id="app">
