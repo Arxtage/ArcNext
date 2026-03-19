@@ -17,6 +17,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
     return p?.type === 'browser' ? p as BrowserPaneInfo : null
   })
   const isWorkspaceActive = usePaneStore((s) => s.activeWorkspaceId === workspaceId)
+  const overlayActive = usePaneStore((s) => s.overlayActive)
   const isActivePane = usePaneStore((s) => {
     const ws = s.workspaces.find((w) => w.id === workspaceId)
     return ws?.activePaneId === paneId
@@ -52,7 +53,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
 
   // Show/hide based on workspace activity and error state
   useEffect(() => {
-    if (isWorkspaceActive && !error) {
+    if (isWorkspaceActive && !error && !overlayActive) {
       window.arcnext.browser.show(paneId)
       // Report bounds immediately on show
       if (placeholderRef.current) {
@@ -64,7 +65,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
     } else {
       window.arcnext.browser.hide(paneId)
     }
-  }, [isWorkspaceActive, error, paneId])
+  }, [isWorkspaceActive, error, overlayActive, paneId])
 
   // Report bounds on resize
   useEffect(() => {
@@ -72,7 +73,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
     if (!el) return
     let rafId = 0
     const report = () => {
-      if (!isWorkspaceActive || error) return
+      if (!isWorkspaceActive || error || overlayActive) return
       const rect = el.getBoundingClientRect()
       window.arcnext.browser.setBounds(paneId, {
         x: rect.x, y: rect.y, width: rect.width, height: rect.height
@@ -87,7 +88,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
       cancelAnimationFrame(rafId)
       observer.disconnect()
     }
-  }, [paneId, isWorkspaceActive, error])
+  }, [paneId, isWorkspaceActive, error, overlayActive])
 
   // Listen for Cmd+L URL focus event from App.tsx
   useEffect(() => {

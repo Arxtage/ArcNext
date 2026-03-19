@@ -44,7 +44,11 @@ export default function App() {
   const undockBrowserPane = usePaneStore((s) => s.undockBrowserPane)
   const removeUndockedBrowserPane = usePaneStore((s) => s.removeUndockedBrowserPane)
   const workspaces = usePaneStore((s) => s.workspaces)
+  const setOverlayActive = usePaneStore((s) => s.setOverlayActive)
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
+
+  const openDirPicker = () => { setDirPickerOpen(true); setOverlayActive(true) }
+  const closeDirPicker = () => { setDirPickerOpen(false); setOverlayActive(false) }
 
   // Prevent Electron's default file-drop navigation so per-component drop handlers work
   useEffect(() => {
@@ -137,7 +141,7 @@ export default function App() {
       if (dirPickerOpen) {
         if (meta && !e.shiftKey && !alt && key === 'g') {
           e.preventDefault()
-          setDirPickerOpen(false)
+          closeDirPicker()
           return
         }
         return
@@ -238,7 +242,7 @@ export default function App() {
       // Cmd+G — open directory picker
       if (meta && !e.shiftKey && !alt && key === 'g') {
         e.preventDefault()
-        setDirPickerOpen(true)
+        openDirPicker()
         return
       }
       // Cmd+B — toggle sidebar
@@ -294,7 +298,7 @@ export default function App() {
           </div>
         ))}
       </div>
-      {dirPickerOpen && <DirPicker onClose={() => setDirPickerOpen(false)} />}
+      {dirPickerOpen && <DirPicker onClose={closeDirPicker} />}
     </div>
   )
 }
