@@ -146,11 +146,8 @@ autoUpdater.on('update-downloaded', (info) => {
     })
 })
 
-app.on('before-quit', (e) => {
-  if (!forceQuit) {
-    e.preventDefault()
-    return
-  }
+app.on('before-quit', () => {
+  if (!forceQuit) return
   killAllPTY()
   destroyAllBrowserViews()
   closeAllExternalWindows()
