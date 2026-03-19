@@ -338,6 +338,7 @@ function WorkspaceRow({
         <div className="ws-single">
           <span className="ws-icon">{isBrowserWorkspace ? '\u{1F310}' : '\u25A0'}</span>
           <input
+            data-suppress-shortcuts
             ref={inputRef}
             className="ws-rename-input"
             defaultValue={hasCustomName ? workspace.name : ''}

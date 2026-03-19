@@ -169,6 +169,7 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
         <form className="browser-url-form" onSubmit={handleUrlSubmit}>
           {isHttps && <span className="browser-url-lock">🔒</span>}
           <input
+            data-suppress-shortcuts
             ref={urlInputRef}
             className="browser-url-input"
             type="text"

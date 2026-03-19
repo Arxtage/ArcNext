@@ -113,14 +113,13 @@ export default function App() {
   // Track UI focus (inputs/textareas) to suppress shortcuts while editing
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if ((e.target as HTMLElement).dataset.suppressShortcuts !== undefined) {
         setFocusState('ui')
       }
     }
     const onFocusOut = (e: FocusEvent) => {
       const related = e.relatedTarget as HTMLElement | null
-      if (related?.tagName === 'INPUT' || related?.tagName === 'TEXTAREA') return
+      if (related?.dataset?.suppressShortcuts !== undefined) return
       if (activePaneType) setFocusState(activePaneType)
     }
     document.addEventListener('focusin', onFocusIn)
