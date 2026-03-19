@@ -18,6 +18,7 @@ import {
 import type { BrowserDockedPayload } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let forceQuit = false
 
 function emitDocked(payload: BrowserDockedPayload): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -52,6 +53,27 @@ function createWindow(): void {
       contextIsolation: true,
       sandbox: false // required for node-pty IPC
     }
+  })
+
+  mainWindow.on('close', (e) => {
+    if (forceQuit) return
+
+    e.preventDefault()
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'question',
+        buttons: ['Quit', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        message: 'Are you sure you want to quit?',
+        detail: 'All terminal sessions will be closed.'
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          forceQuit = true
+          app.quit()
+        }
+      })
   })
 
   setupPTY(mainWindow)
@@ -117,7 +139,10 @@ autoUpdater.on('update-downloaded', (info) => {
       buttons: ['Restart', 'Later']
     })
     .then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall()
+      if (response === 0) {
+        forceQuit = true
+        autoUpdater.quitAndInstall()
+      }
     })
 })
 
