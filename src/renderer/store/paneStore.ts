@@ -5,7 +5,7 @@ import {
 } from '../model/splitTree'
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
 import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
-import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo } from '../../shared/types'
+import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo, SerializedPane, PinnedWorkspaceEntry } from '../../shared/types'
 
 let nextPaneId = 1
 let nextWorkspaceId = 1
@@ -26,6 +26,8 @@ export interface Workspace {
   tree: SplitNode
   activePaneId: string
   color?: string
+  pinned?: boolean
+  dormant?: boolean
 }
 
 interface BrowserPaneOptions {
@@ -79,6 +81,15 @@ interface PaneStore {
   undockBrowserPane: (paneId: string) => void
   removeUndockedBrowserPane: (paneId: string) => void
 
+  // Pinned workspaces
+  pinWorkspace: (id: string) => void
+  unpinWorkspace: (id: string) => void
+  sleepWorkspace: (id: string) => void
+  wakeWorkspace: (id: string) => void
+  loadPinnedWorkspaces: (entries: PinnedWorkspaceEntry[]) => void
+  serializePinnedWorkspaces: () => PinnedWorkspaceEntry[]
+  persistPinned: () => void
+
   // Focus state
   focusState: 'terminal' | 'browser' | 'ui'
   setFocusState: (state: 'terminal' | 'browser' | 'ui') => void
@@ -88,10 +99,10 @@ interface PaneStore {
   setOverlay: (id: string, active: boolean) => void
 }
 
-function makeTerminalPane(): TerminalPaneInfo {
+function makeTerminalPane(cwd?: string): TerminalPaneInfo {
   const id = genPaneId()
-  createTerminal(id)
-  return { type: 'terminal', id, title: 'shell', cwd: '' }
+  createTerminal(id, cwd)
+  return { type: 'terminal', id, title: 'shell', cwd: cwd || '' }
 }
 
 function makeBrowserPane(url: string, options: BrowserPaneOptions = {}): BrowserPaneInfo {
@@ -129,6 +140,12 @@ function makeWorkspace(name?: string): { workspace: Workspace; pane: PaneInfo } 
   }
 }
 
+let _persistTimer: ReturnType<typeof setTimeout> | null = null
+
+function isPaneInPinnedWorkspace(paneId: string, workspaces: Workspace[]): boolean {
+  return workspaces.some((w) => w.pinned && allPaneIds(w.tree).includes(paneId))
+}
+
 const initial = makeWorkspace()
 
 export const usePaneStore = create<PaneStore>((set, get) => ({
@@ -155,8 +172,6 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
 
   removeWorkspace: (id) => {
     const { workspaces, activeWorkspaceId, panes } = get()
-    if (workspaces.length <= 1) return
-
     const ws = workspaces.find((w) => w.id === id)
     if (!ws) return
 
@@ -170,8 +185,22 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     }
 
     const remaining = workspaces.filter((w) => w.id !== id)
+    const unpinnedRemaining = remaining.filter((w) => !w.pinned)
+
+    // If this was the last unpinned workspace, create a fresh one
+    if (unpinnedRemaining.length === 0) {
+      const { workspace: newWs, pane: newPane } = makeWorkspace()
+      newPanes.set(newPane.id, newPane)
+      set({
+        workspaces: [...remaining, newWs],
+        activeWorkspaceId: newWs.id,
+        panes: newPanes
+      })
+      return
+    }
+
     const newActive = id === activeWorkspaceId
-      ? remaining[Math.max(0, workspaces.findIndex((w) => w.id === id) - 1)].id
+      ? (remaining.find((w) => !w.dormant) || remaining[0]).id
       : activeWorkspaceId
 
     set({ workspaces: remaining, activeWorkspaceId: newActive, panes: newPanes })
@@ -198,6 +227,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         .filter((w) => w.id !== sourceId),
       activeWorkspaceId: targetId
     })
+    if (targetWs.pinned || sourceWs.pinned) get().persistPinned()
   },
 
   setWorkspaceColor: (id, color) => {
@@ -205,6 +235,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     set({
       workspaces: workspaces.map((w) => w.id === id ? { ...w, color } : w)
     })
+    if (workspaces.find((w) => w.id === id)?.pinned) get().persistPinned()
   },
 
   setWorkspaceName: (id, name) => {
@@ -212,6 +243,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     set({
       workspaces: workspaces.map((w) => w.id === id ? { ...w, name } : w)
     })
+    if (workspaces.find((w) => w.id === id)?.pinned) get().persistPinned()
   },
 
   moveWorkspace: (fromIndex, toIndex) => {
@@ -222,6 +254,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const [moved] = next.splice(fromIndex, 1)
     next.splice(toIndex, 0, moved)
     set({ workspaces: next })
+    if (next.some((w) => w.pinned)) get().persistPinned()
   },
 
   separateWorkspace: (workspaceId) => {
@@ -245,7 +278,8 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       id: newWsId,
       name: `Workspace ${newWsId.split('-')[1]}`,
       tree: secondTree,
-      activePaneId: secondPaneIds[0]
+      activePaneId: secondPaneIds[0],
+      pinned: ws.pinned
     }
 
     const wsIndex = workspaces.findIndex((w) => w.id === workspaceId)
@@ -257,6 +291,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: newWorkspaces,
       activeWorkspaceId: workspaceId
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   closePaneInWorkspace: (workspaceId, paneId) => {
@@ -419,12 +454,13 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   },
 
   setPaneCwd: (id, cwd) => {
-    const { panes } = get()
+    const { panes, workspaces } = get()
     const pane = panes.get(id)
     if (!pane || pane.type !== 'terminal') return
     const newPanes = new Map(panes)
     newPanes.set(id, { ...pane, cwd })
     set({ panes: newPanes })
+    if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
   },
 
   setTree: (tree) => {
@@ -477,12 +513,13 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   },
 
   setBrowserPaneUrl: (id, url) => {
-    const { panes } = get()
+    const { panes, workspaces } = get()
     const pane = panes.get(id)
     if (!pane || pane.type !== 'browser') return
     const newPanes = new Map(panes)
     newPanes.set(id, { ...pane, url })
     set({ panes: newPanes })
+    if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
   },
 
   setBrowserPaneNavState: (id, canGoBack, canGoForward) => {
@@ -504,12 +541,13 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   },
 
   setBrowserPaneFavicon: (id, faviconUrl) => {
-    const { panes } = get()
+    const { panes, workspaces } = get()
     const pane = panes.get(id)
     if (!pane || pane.type !== 'browser') return
     const newPanes = new Map(panes)
     newPanes.set(id, { ...pane, faviconUrl })
     set({ panes: newPanes })
+    if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
   },
 
   undockBrowserPane: (paneId) => {
@@ -565,6 +603,183 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === ws.id ? updatedWs : w),
       panes: newPanes
     })
+  },
+
+  pinWorkspace: (id) => {
+    const { workspaces } = get()
+    const ws = workspaces.find((w) => w.id === id)
+    if (!ws || ws.pinned) return
+    const updated = { ...ws, pinned: true }
+    const without = workspaces.filter((w) => w.id !== id)
+    const pinnedCount = without.filter((w) => w.pinned).length
+    const next = [...without]
+    next.splice(pinnedCount, 0, updated)
+    set({ workspaces: next })
+    get().persistPinned()
+  },
+
+  unpinWorkspace: (id) => {
+    const { workspaces } = get()
+    const ws = workspaces.find((w) => w.id === id)
+    if (!ws || !ws.pinned) return
+
+    // If dormant, wake it first
+    if (ws.dormant) {
+      const paneIds = allPaneIds(ws.tree)
+      const { panes } = get()
+      for (const pid of paneIds) {
+        const pane = panes.get(pid)
+        if (!pane) continue
+        if (pane.type === 'terminal') {
+          createTerminal(pid, (pane as TerminalPaneInfo).cwd || undefined)
+        }
+      }
+    }
+
+    const updated = { ...ws, pinned: false, dormant: false }
+    const without = workspaces.filter((w) => w.id !== id)
+    const pinnedCount = without.filter((w) => w.pinned).length
+    const next = [...without]
+    next.splice(pinnedCount, 0, updated)
+    set({ workspaces: next })
+    get().persistPinned()
+  },
+
+  sleepWorkspace: (id) => {
+    const { workspaces, panes, activeWorkspaceId } = get()
+    const ws = workspaces.find((w) => w.id === id)
+    if (!ws || !ws.pinned || ws.dormant) return
+
+    // Destroy live resources for each pane
+    const paneIds = allPaneIds(ws.tree)
+    for (const pid of paneIds) {
+      const pane = panes.get(pid)
+      if (pane) destroyPane(pane)
+    }
+
+    const updated = { ...ws, dormant: true }
+
+    // If this was the active workspace, switch to next available live one
+    let newActive = activeWorkspaceId
+    if (activeWorkspaceId === id) {
+      const liveWs = workspaces.find((w) => w.id !== id && !w.dormant)
+      if (liveWs) {
+        newActive = liveWs.id
+      }
+    }
+
+    set({
+      workspaces: workspaces.map((w) => w.id === id ? updated : w),
+      activeWorkspaceId: newActive
+    })
+    get().persistPinned()
+  },
+
+  wakeWorkspace: (id) => {
+    const { workspaces, panes } = get()
+    const ws = workspaces.find((w) => w.id === id)
+    if (!ws || !ws.dormant) return
+
+    const paneIds = allPaneIds(ws.tree)
+    for (const pid of paneIds) {
+      const pane = panes.get(pid)
+      if (!pane) continue
+      if (pane.type === 'terminal') {
+        createTerminal(pid, (pane as TerminalPaneInfo).cwd || undefined)
+      }
+      // Browser panes: BrowserPane component calls browser.create() on mount
+    }
+
+    set({
+      workspaces: workspaces.map((w) => w.id === id ? { ...w, dormant: false } : w)
+    })
+  },
+
+  loadPinnedWorkspaces: (entries) => {
+    if (!entries.length) return
+    const { workspaces, panes } = get()
+    const newPanes = new Map(panes)
+    const pinnedWorkspaces: Workspace[] = []
+
+    for (const entry of entries) {
+      const idMap = new Map<string, string>()
+      for (const sp of entry.panes) {
+        const newId = genPaneId()
+        idMap.set(sp.id, newId)
+      }
+
+      // Remap IDs in tree
+      function remapTree(node: SplitNode): SplitNode {
+        if (node.type === 'leaf') {
+          return { type: 'leaf', paneId: idMap.get(node.paneId) || node.paneId }
+        }
+        return { ...node, first: remapTree(node.first), second: remapTree(node.second) }
+      }
+
+      const tree = remapTree(entry.tree as SplitNode)
+      const activePaneId = idMap.get(entry.activePaneId) || allPaneIds(tree)[0]
+
+      // Create placeholder PaneInfo entries
+      for (const sp of entry.panes) {
+        const newId = idMap.get(sp.id)!
+        if (sp.type === 'terminal') {
+          newPanes.set(newId, { type: 'terminal', id: newId, title: sp.title || 'shell', cwd: sp.cwd || '' })
+        } else {
+          newPanes.set(newId, {
+            type: 'browser', id: newId, title: sp.title || '', url: sp.url || '',
+            canGoBack: false, canGoForward: false, isLoading: false, faviconUrl: sp.faviconUrl
+          })
+        }
+      }
+
+      const wsId = genWorkspaceId()
+      pinnedWorkspaces.push({
+        id: wsId,
+        name: entry.name,
+        color: entry.color,
+        tree,
+        activePaneId,
+        pinned: true,
+        dormant: true
+      })
+    }
+
+    set({
+      workspaces: [...pinnedWorkspaces, ...workspaces],
+      panes: newPanes
+    })
+  },
+
+  serializePinnedWorkspaces: () => {
+    const { workspaces, panes } = get()
+    return workspaces.filter((w) => w.pinned).map((ws) => {
+      const paneIds = allPaneIds(ws.tree)
+      const serializedPanes: SerializedPane[] = paneIds.map((pid) => {
+        const pane = panes.get(pid)
+        if (!pane) return { type: 'terminal' as const, id: pid, title: 'shell' }
+        if (pane.type === 'terminal') {
+          return { type: 'terminal' as const, id: pane.id, title: pane.title, cwd: (pane as TerminalPaneInfo).cwd }
+        }
+        const bp = pane as BrowserPaneInfo
+        return { type: 'browser' as const, id: pane.id, title: pane.title, url: bp.url, faviconUrl: bp.faviconUrl }
+      })
+      return {
+        name: ws.name,
+        color: ws.color,
+        tree: ws.tree,
+        activePaneId: ws.activePaneId,
+        panes: serializedPanes
+      }
+    })
+  },
+
+  persistPinned: () => {
+    if (typeof window === 'undefined' || !window.arcnext?.pinnedWorkspaces) return
+    if (_persistTimer) clearTimeout(_persistTimer)
+    _persistTimer = setTimeout(() => {
+      const data = usePaneStore.getState().serializePinnedWorkspaces()
+      window.arcnext.pinnedWorkspaces.save(data)
+    }, 2000)
   },
 
   focusState: 'terminal',

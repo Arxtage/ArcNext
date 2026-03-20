@@ -42,6 +42,10 @@ const api = {
       return () => { ipcRenderer.removeListener('pty:title', handler) }
     }
   },
+  pinnedWorkspaces: {
+    load: () => ipcRenderer.invoke('pinnedWorkspaces:load'),
+    save: (data: unknown) => ipcRenderer.invoke('pinnedWorkspaces:save', data)
+  },
   browser: {
     create: (paneId: string, url: string) =>
       ipcRenderer.send('browser:create', paneId, url),
