@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
@@ -125,7 +125,70 @@ function createWindow(): void {
   }
 }
 
+function buildApplicationMenu(): Menu {
+  const editMenu = {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' as const },
+      { role: 'redo' as const },
+      { type: 'separator' as const },
+      { role: 'cut' as const },
+      { role: 'copy' as const },
+      { role: 'paste' as const },
+      { role: 'selectAll' as const }
+    ]
+  }
+
+  const viewMenu = {
+    label: 'View',
+    submenu: [
+      { role: 'toggleDevTools' as const },
+      { type: 'separator' as const },
+      { role: 'resetZoom' as const },
+      { role: 'zoomIn' as const },
+      { role: 'zoomOut' as const },
+      { type: 'separator' as const },
+      { role: 'togglefullscreen' as const }
+    ]
+  }
+
+  const windowMenu = {
+    label: 'Window',
+    submenu: [
+      { role: 'minimize' as const },
+      ...(process.platform === 'darwin'
+        ? [{ role: 'zoom' as const }, { type: 'separator' as const }, { role: 'front' as const }]
+        : [{ role: 'close' as const }])
+    ]
+  }
+
+  const template = process.platform === 'darwin'
+    ? [
+        {
+          label: app.name,
+          submenu: [
+            { role: 'about' as const },
+            { type: 'separator' as const },
+            { role: 'services' as const },
+            { type: 'separator' as const },
+            { role: 'hide' as const },
+            { role: 'hideOthers' as const },
+            { role: 'unhide' as const },
+            { type: 'separator' as const },
+            { role: 'quit' as const }
+          ]
+        },
+        editMenu,
+        viewMenu,
+        windowMenu
+      ]
+    : [editMenu, viewMenu, windowMenu]
+
+  return Menu.buildFromTemplate(template)
+}
+
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(buildApplicationMenu())
   createWindow()
   autoUpdater.checkForUpdatesAndNotify()
 })

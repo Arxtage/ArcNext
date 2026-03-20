@@ -49,6 +49,23 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
     },
     onOpenExternal: (url) => {
       createExternalBrowserWindow(url)
+    },
+    onBeforeInput: (input) => {
+      const meta = input.meta || input.control
+      if (!meta || input.type !== 'keyDown') return false
+      const key = input.key.toLowerCase()
+
+      if (!input.shift && !input.alt && key === 'r') {
+        view.webContents.reload()
+        return true
+      }
+
+      if (input.shift && !input.alt && key === 'r') {
+        view.webContents.reloadIgnoringCache()
+        return true
+      }
+
+      return false
     }
   })
 }
