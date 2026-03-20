@@ -60,13 +60,29 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
       if (!meta || input.type !== 'keyDown') return false
       const key = input.key.toLowerCase()
 
+      // Cmd+R / Cmd+Shift+R — handle directly in main process
       if (!input.shift && !input.alt && key === 'r') {
         view.webContents.reload()
         return true
       }
-
       if (input.shift && !input.alt && key === 'r') {
         view.webContents.reloadIgnoringCache()
+        return true
+      }
+
+      // Forward app shortcuts to the renderer via IPC
+      const shouldForward =
+        // Cmd (no shift, no alt): w, g, b, d, l, [, ]
+        (!input.shift && !input.alt && ['w', 'g', 'b', 'd', 'l', '[', ']'].includes(key)) ||
+        // Cmd (no alt): t, 1-9
+        (!input.alt && (key === 't' || (key >= '1' && key <= '9'))) ||
+        // Cmd+Shift (no alt): d, Enter
+        (input.shift && !input.alt && (key === 'd' || input.key === 'Enter')) ||
+        // Cmd+Alt: arrow keys
+        (input.alt && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key))
+
+      if (shouldForward && mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:appShortcut', input.key, !!input.meta, !!input.control, !!input.shift, !!input.alt)
         return true
       }
 

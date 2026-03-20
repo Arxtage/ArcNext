@@ -113,6 +113,11 @@ const api = {
       const handler = (_event: IpcRendererEvent, payload: BrowserUndockedPayload) => cb(payload)
       ipcRenderer.on('browser:undocked', handler)
       return () => { ipcRenderer.removeListener('browser:undocked', handler) }
+    },
+    onAppShortcut: (cb: (key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => void) => {
+      const handler = (_event: IpcRendererEvent, key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => cb(key, meta, ctrl, shift, alt)
+      ipcRenderer.on('browser:appShortcut', handler)
+      return () => { ipcRenderer.removeListener('browser:appShortcut', handler) }
     }
   }
 }

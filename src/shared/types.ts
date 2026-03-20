@@ -93,6 +93,7 @@ export interface IPCChannels {
   'browser:undock': (paneId: string) => Promise<boolean>
   'browser:docked': (payload: BrowserDockedPayload) => void
   'browser:undocked': (payload: BrowserUndockedPayload) => void
+  'browser:appShortcut': (key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => void
   // External shell window
   'externalBrowser:getState': () => Promise<ExternalBrowserShellState | null>
   'externalBrowser:dockCurrentWindow': () => void

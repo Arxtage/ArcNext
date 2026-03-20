@@ -124,6 +124,21 @@ export default function App() {
     removeUndockedBrowserPane
   ])
 
+  // Receive forwarded app shortcuts from WebContentsView and re-dispatch as synthetic keydown events
+  useEffect(() => {
+    return window.arcnext.browser.onAppShortcut((key, meta, ctrl, shift, alt) => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key,
+        metaKey: meta,
+        ctrlKey: ctrl,
+        shiftKey: shift,
+        altKey: alt,
+        bubbles: true,
+        cancelable: true
+      }))
+    })
+  }, [])
+
   // Track UI focus (inputs/textareas) to suppress shortcuts while editing
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
