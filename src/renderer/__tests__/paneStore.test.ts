@@ -472,6 +472,46 @@ describe('paneStore — mixed workspace operations', () => {
   })
 })
 
+describe('paneStore — moveWorkspace', () => {
+  beforeEach(resetStore)
+
+  it('moves workspace from index 0 to index 2 in a 3-workspace list', () => {
+    usePaneStore.getState().addWorkspace()
+    usePaneStore.getState().addWorkspace()
+    const ids = usePaneStore.getState().workspaces.map(w => w.id)
+    expect(ids).toHaveLength(3)
+
+    usePaneStore.getState().moveWorkspace(0, 2)
+    const after = usePaneStore.getState().workspaces.map(w => w.id)
+    expect(after).toEqual([ids[1], ids[2], ids[0]])
+  })
+
+  it('no-op when fromIndex === toIndex', () => {
+    usePaneStore.getState().addWorkspace()
+    const before = usePaneStore.getState().workspaces.map(w => w.id)
+    usePaneStore.getState().moveWorkspace(0, 0)
+    const after = usePaneStore.getState().workspaces.map(w => w.id)
+    expect(after).toEqual(before)
+  })
+
+  it('no-op when indices out of bounds', () => {
+    usePaneStore.getState().addWorkspace()
+    const before = usePaneStore.getState().workspaces.map(w => w.id)
+    usePaneStore.getState().moveWorkspace(-1, 0)
+    usePaneStore.getState().moveWorkspace(0, 5)
+    const after = usePaneStore.getState().workspaces.map(w => w.id)
+    expect(after).toEqual(before)
+  })
+
+  it('preserves activeWorkspaceId', () => {
+    usePaneStore.getState().addWorkspace()
+    usePaneStore.getState().addWorkspace()
+    const activeId = usePaneStore.getState().activeWorkspaceId
+    usePaneStore.getState().moveWorkspace(0, 2)
+    expect(usePaneStore.getState().activeWorkspaceId).toBe(activeId)
+  })
+})
+
 describe('paneStore — focusState tracking', () => {
   beforeEach(resetStore)
 

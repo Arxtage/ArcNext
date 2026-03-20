@@ -67,8 +67,13 @@ export default function Sidebar() {
 
   const setOverlay = usePaneStore((s) => s.setOverlay)
 
+  const moveWorkspace = usePaneStore((s) => s.moveWorkspace)
+
   const [dragSourceId, setDragSourceId] = useState<string | null>(null)
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [dragOverState, setDragOverState] = useState<{
+    targetId: string
+    position: 'before' | 'after' | 'on'
+  } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; workspaceId: string } | null>(null)
   const [colorPicker, setColorPicker] = useState<{ x: number; y: number; workspaceId: string } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -154,7 +159,7 @@ export default function Sidebar() {
           </svg>
         </button>
       </div>
-      <div className="sidebar-list">
+      <div className="sidebar-list" onDragOver={(e) => { if (dragSourceId) e.preventDefault() }}>
         {workspaces.map((ws) => (
           <WorkspaceRow
             key={ws.id}
@@ -163,7 +168,7 @@ export default function Sidebar() {
             collapsed={sidebarCollapsed}
             isActive={ws.id === activeWorkspaceId}
             isDragging={ws.id === dragSourceId}
-            isDropTarget={ws.id === dragOverId && ws.id !== dragSourceId}
+            dropPosition={dragOverState?.targetId === ws.id && ws.id !== dragSourceId ? dragOverState.position : null}
             onSelect={() => switchWorkspace(ws.id)}
             onClose={() => removeWorkspace(ws.id)}
             onClosePane={(paneId) => closePaneInWorkspace(ws.id, paneId)}
@@ -183,25 +188,41 @@ export default function Sidebar() {
             onDragStart={() => setDragSourceId(ws.id)}
             onDragOver={(e) => {
               e.preventDefault()
-              setDragOverId(ws.id)
+              if (dragSourceId === ws.id) { setDragOverState(null); return }
+              const rect = e.currentTarget.getBoundingClientRect()
+              const ratio = (e.clientY - rect.top) / rect.height
+              const position = ratio < 0.3 ? 'before' : ratio > 0.7 ? 'after' : 'on'
+              const srcIdx = workspaces.findIndex((w) => w.id === dragSourceId)
+              const tgtIdx = workspaces.findIndex((w) => w.id === ws.id)
+              if (position === 'before' && tgtIdx === srcIdx + 1) { setDragOverState(null); return }
+              if (position === 'after' && tgtIdx === srcIdx - 1) { setDragOverState(null); return }
+              if (dragOverState?.targetId === ws.id && dragOverState?.position === position) return
+              setDragOverState({ targetId: ws.id, position })
             }}
             onDragLeave={(e) => {
               if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-                setDragOverId(null)
+                setDragOverState(null)
               }
             }}
             onDrop={(e) => {
               e.preventDefault()
-              if (dragSourceId && dragSourceId !== ws.id) {
-                const direction = e.shiftKey ? 'vertical' : 'horizontal'
-                mergeWorkspaces(ws.id, dragSourceId, direction)
+              if (dragSourceId && dragSourceId !== ws.id && dragOverState) {
+                if (dragOverState.position === 'on') {
+                  mergeWorkspaces(ws.id, dragSourceId, e.shiftKey ? 'vertical' : 'horizontal')
+                } else {
+                  const fromIndex = workspaces.findIndex((w) => w.id === dragSourceId)
+                  let toIndex = workspaces.findIndex((w) => w.id === ws.id)
+                  if (dragOverState.position === 'after') toIndex++
+                  if (fromIndex < toIndex) toIndex--
+                  moveWorkspace(fromIndex, toIndex)
+                }
               }
               setDragSourceId(null)
-              setDragOverId(null)
+              setDragOverState(null)
             }}
             onDragEnd={() => {
               setDragSourceId(null)
-              setDragOverId(null)
+              setDragOverState(null)
             }}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -211,7 +232,20 @@ export default function Sidebar() {
             }}
           />
         ))}
-        <button className="sidebar-add" onClick={addWorkspace}>
+        <button
+          className={`sidebar-add${dragSourceId && dragOverState?.targetId === '__add' ? ' sidebar-add-drop' : ''}`}
+          onClick={addWorkspace}
+          onDragOver={(e) => { if (dragSourceId) { e.preventDefault(); setDragOverState({ targetId: '__add', position: 'before' }) } }}
+          onDragLeave={() => setDragOverState(null)}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (dragSourceId) {
+              const from = workspaces.findIndex((w) => w.id === dragSourceId)
+              if (from < workspaces.length - 1) moveWorkspace(from, workspaces.length - 1)
+            }
+            setDragSourceId(null); setDragOverState(null)
+          }}
+        >
           {sidebarCollapsed ? '+' : '+ New Workspace'}
         </button>
       </div>
@@ -280,7 +314,7 @@ interface WorkspaceRowProps {
   collapsed: boolean
   isActive: boolean
   isDragging: boolean
-  isDropTarget: boolean
+  dropPosition: 'before' | 'after' | 'on' | null
   isEditing: boolean
   onSelect: () => void
   onClose: () => void
@@ -297,7 +331,7 @@ interface WorkspaceRowProps {
 }
 
 function WorkspaceRow({
-  workspace, panes, collapsed, isActive, isDragging, isDropTarget, isEditing,
+  workspace, panes, collapsed, isActive, isDragging, dropPosition, isEditing,
   onSelect, onClose, onClosePane, onDoubleClick, onRename, onCancelRename,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu
 }: WorkspaceRowProps) {
@@ -318,7 +352,9 @@ function WorkspaceRow({
     'ws-row',
     isActive && 'active',
     isDragging && 'ws-dragging',
-    isDropTarget && 'ws-drop-target'
+    dropPosition === 'on' && 'ws-drop-target',
+    dropPosition === 'before' && 'ws-insert-before',
+    dropPosition === 'after' && 'ws-insert-after'
   ].filter(Boolean).join(' ')
 
   useEffect(() => {

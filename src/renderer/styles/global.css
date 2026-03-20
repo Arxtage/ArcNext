@@ -229,6 +229,60 @@ body,
     background: #74c0fc15;
 }
 
+.ws-row.ws-insert-before,
+.ws-row.ws-insert-after {
+    overflow: visible;
+    z-index: 4;
+}
+
+/* Reorder indicator — line */
+.ws-row.ws-insert-before::after,
+.ws-row.ws-insert-after::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 8px;
+    height: 2px;
+    background: #74c0fc;
+    border-radius: 1px;
+    z-index: 5;
+    pointer-events: none;
+}
+.ws-row.ws-insert-before::after { top: -2px; }
+.ws-row.ws-insert-after::after { bottom: -2px; }
+
+/* Reorder indicator — circle */
+.ws-row.ws-insert-before::before,
+.ws-row.ws-insert-after::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #74c0fc;
+    z-index: 5;
+    pointer-events: none;
+}
+.ws-row.ws-insert-before::before { top: -4px; }
+.ws-row.ws-insert-after::before { bottom: -4px; }
+
+.sidebar-collapsed .ws-row.ws-insert-before::after,
+.sidebar-collapsed .ws-row.ws-insert-after::after {
+    left: 8px;
+    right: 4px;
+}
+.sidebar-collapsed .ws-row.ws-insert-before::before,
+.sidebar-collapsed .ws-row.ws-insert-after::before {
+    left: 1px;
+}
+
+.sidebar-add.sidebar-add-drop {
+    outline: 2px dashed #74c0fc;
+    outline-offset: -2px;
+    background: #74c0fc10;
+}
+
 .ws-row .ws-close {
     position: absolute;
     top: 6px;

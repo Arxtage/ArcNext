@@ -53,6 +53,7 @@ interface PaneStore {
   separateWorkspace: (workspaceId: string) => void
   setWorkspaceColor: (id: string, color: string | undefined) => void
   setWorkspaceName: (id: string, name: string) => void
+  moveWorkspace: (fromIndex: number, toIndex: number) => void
 
   // Pane actions
   closePaneInWorkspace: (workspaceId: string, paneId: string) => void
@@ -211,6 +212,16 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     set({
       workspaces: workspaces.map((w) => w.id === id ? { ...w, name } : w)
     })
+  },
+
+  moveWorkspace: (fromIndex, toIndex) => {
+    const { workspaces } = get()
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 ||
+        fromIndex >= workspaces.length || toIndex >= workspaces.length) return
+    const next = [...workspaces]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    set({ workspaces: next })
   },
 
   separateWorkspace: (workspaceId) => {
