@@ -27,6 +27,7 @@ interface ArcNextAPI {
   pinnedWorkspaces: {
     load(): Promise<PinnedWorkspaceEntry[]>
     save(data: PinnedWorkspaceEntry[]): Promise<void>
+    saveSync(data: PinnedWorkspaceEntry[]): void
   }
   pty: {
     create(paneId: string, cwd?: string): void

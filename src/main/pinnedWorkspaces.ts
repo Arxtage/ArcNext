@@ -47,6 +47,14 @@ export function setupPinnedWorkspaces(): void {
     workspaces = data
     debouncedFlush()
   })
+
+  // Synchronous save for beforeunload — guarantees data is written before window closes
+  ipcMain.on('pinnedWorkspaces:saveSync', (event, data: PinnedWorkspaceEntry[]) => {
+    workspaces = data
+    if (flushTimer) clearTimeout(flushTimer)
+    flushToDisk()
+    event.returnValue = true
+  })
 }
 
 export function flushPinnedWorkspacesSync(): void {

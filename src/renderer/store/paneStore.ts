@@ -196,6 +196,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         activeWorkspaceId: newWs.id,
         panes: newPanes
       })
+      if (ws.pinned) get().persistPinned()
       return
     }
 
@@ -204,6 +205,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       : activeWorkspaceId
 
     set({ workspaces: remaining, activeWorkspaceId: newActive, panes: newPanes })
+    if (ws.pinned) get().persistPinned()
   },
 
   switchWorkspace: (id) => set({ activeWorkspaceId: id }),
@@ -328,6 +330,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === workspaceId ? updatedWs : w),
       panes: newPanes
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   splitActive: (direction) => {
@@ -349,6 +352,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
       panes: newPanes
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   closePane: (id) => {
@@ -385,6 +389,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
       panes: newPanes
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   setActivePaneInWorkspace: (paneId) => {
@@ -428,18 +433,20 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       return
     }
 
-    // At the boundary — cross to adjacent workspace on left/right
+    // At the boundary — cross to adjacent workspace on left/right (skip dormant)
     if (dir === 'left' || dir === 'up') {
-      const prevIdx = wsIdx - 1
-      if (prevIdx >= 0) {
-        const prevWs = workspaces[prevIdx]
-        set({ activeWorkspaceId: prevWs.id })
+      for (let i = wsIdx - 1; i >= 0; i--) {
+        if (!workspaces[i].dormant) {
+          set({ activeWorkspaceId: workspaces[i].id })
+          break
+        }
       }
     } else {
-      const nextIdx = wsIdx + 1
-      if (nextIdx < workspaces.length) {
-        const nextWs = workspaces[nextIdx]
-        set({ activeWorkspaceId: nextWs.id })
+      for (let i = wsIdx + 1; i < workspaces.length; i++) {
+        if (!workspaces[i].dormant) {
+          set({ activeWorkspaceId: workspaces[i].id })
+          break
+        }
       }
     }
   },
@@ -470,6 +477,8 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         w.id === activeWorkspaceId ? { ...w, tree } : w
       )
     })
+    const ws = workspaces.find((w) => w.id === activeWorkspaceId)
+    if (ws?.pinned) get().persistPinned()
   },
 
   addBrowserWorkspace: (url, options = {}) => {
@@ -510,6 +519,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
       panes: newPanes
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   setBrowserPaneUrl: (id, url) => {
@@ -574,6 +584,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
           activeWorkspaceId: replacement.workspace.id,
           panes: newPanes
         })
+        if (ws.pinned) get().persistPinned()
         return
       }
 
@@ -583,6 +594,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         : activeWorkspaceId
 
       set({ workspaces: remaining, activeWorkspaceId: newActive, panes: newPanes })
+      if (ws.pinned) get().persistPinned()
       return
     }
 
@@ -603,6 +615,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       workspaces: workspaces.map((w) => w.id === ws.id ? updatedWs : w),
       panes: newPanes
     })
+    if (ws.pinned) get().persistPinned()
   },
 
   pinWorkspace: (id) => {
@@ -793,6 +806,18 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     return { activeOverlays: next }
   })
 }))
+
+/** Flush any pending debounced persistPinned call immediately via sync IPC (for beforeunload). */
+export function flushPersistPinned(): void {
+  if (_persistTimer) {
+    clearTimeout(_persistTimer)
+    _persistTimer = null
+  }
+  if (typeof window !== 'undefined' && window.arcnext?.pinnedWorkspaces?.saveSync) {
+    const data = usePaneStore.getState().serializePinnedWorkspaces()
+    window.arcnext.pinnedWorkspaces.saveSync(data)
+  }
+}
 
 // Auto-sync focusState when the active pane changes through any action
 let _prevWsId = ''

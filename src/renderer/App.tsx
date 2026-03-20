@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import SplitView from './components/SplitView'
 import Sidebar from './components/Sidebar'
 import UnifiedPicker from './components/UnifiedPicker'
-import { usePaneStore, useActiveWorkspace } from './store/paneStore'
+import { usePaneStore, useActiveWorkspace, flushPersistPinned } from './store/paneStore'
 import { setTitleChangeCallback, setCwdChangeCallback, writeToTerminalPTY } from './model/terminalManager'
 import { NavDirection } from './model/splitTree'
 
@@ -70,6 +70,13 @@ export default function App() {
         usePaneStore.getState().loadPinnedWorkspaces(entries)
       }
     })
+  }, [])
+
+  // Flush pending pinned-workspace saves on quit to prevent data loss from debounce
+  useEffect(() => {
+    const handler = () => flushPersistPinned()
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
   }, [])
 
   // Wire terminal title changes into the store
