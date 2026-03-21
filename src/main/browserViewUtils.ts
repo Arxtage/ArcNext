@@ -11,6 +11,7 @@ interface BrowserWebContentsCallbacks {
   onFocus?: () => void
   onFavicon?: (faviconUrl: string) => void
   onOpenExternal?: (url: string) => void
+  onFoundInPage?: (activeMatch: number, totalMatches: number) => void
   onBeforeInput?: (input: Electron.Input) => boolean
 }
 
@@ -196,7 +197,12 @@ export function wireBrowserViewEvents(
   wc.on('did-fail-load', onDidFailLoad)
   wc.on('focus', onFocus)
   wc.on('page-favicon-updated', onFaviconUpdated)
+  const onFoundInPage = (_event: Electron.Event, result: Electron.Result): void => {
+    callbacks.onFoundInPage?.(result.activeMatchOrdinal, result.matches)
+  }
+
   wc.on('before-input-event', onBeforeInput)
+  wc.on('found-in-page', onFoundInPage)
 
   const onContextMenu = (
     _event: Electron.Event,
@@ -224,6 +230,7 @@ export function wireBrowserViewEvents(
     wc.removeListener('focus', onFocus)
     wc.removeListener('page-favicon-updated', onFaviconUpdated)
     wc.removeListener('before-input-event', onBeforeInput)
+    wc.removeListener('found-in-page', onFoundInPage)
     wc.removeListener('context-menu', onContextMenu)
     wc.setWindowOpenHandler(() => ({ action: 'deny' }))
   }

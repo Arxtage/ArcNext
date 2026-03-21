@@ -61,6 +61,9 @@ interface ArcNextAPI {
     undockPane(paneId: string): Promise<boolean>
     onDocked(cb: (payload: BrowserDockedPayload) => void): () => void
     onUndocked(cb: (payload: BrowserUndockedPayload) => void): () => void
+    findInPage(paneId: string, text: string, forward?: boolean): void
+    stopFindInPage(paneId: string): void
+    onFoundInPage(cb: (paneId: string, activeMatch: number, totalMatches: number) => void): () => void
     onAppShortcut(cb: (key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => void): () => void
   }
   getPathForFile(file: File): string

@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { usePaneStore } from '../store/paneStore'
-import { attachTerminal, detachTerminal, fitTerminal, focusTerminal, blurTerminal, writeToTerminalPTY } from '../model/terminalManager'
+import { attachTerminal, detachTerminal, fitTerminal, focusTerminal, blurTerminal, writeToTerminalPTY, terminalFindNext, terminalFindPrevious, terminalClearSearch } from '../model/terminalManager'
+import { findController } from '../model/findController'
+import FindBar from './FindBar'
 
 interface Props {
   paneId: string
@@ -25,6 +27,45 @@ export default function TerminalPane({ paneId }: Props) {
   const ws = usePaneStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId))
   const setActive = usePaneStore((s) => s.setActivePaneInWorkspace)
   const isActive = ws?.activePaneId === paneId
+
+  const [findOpen, setFindOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const handleSearchChange = useCallback((term: string) => {
+    setSearchTerm(term)
+    if (term) terminalFindNext(paneId, term)
+    else terminalClearSearch(paneId)
+  }, [paneId])
+
+  const handleNext = useCallback(() => {
+    if (searchTerm) terminalFindNext(paneId, searchTerm)
+  }, [paneId, searchTerm])
+
+  const handlePrev = useCallback(() => {
+    if (searchTerm) terminalFindPrevious(paneId, searchTerm)
+  }, [paneId, searchTerm])
+
+  const handleClose = useCallback(() => {
+    setFindOpen(false)
+    setSearchTerm('')
+    terminalClearSearch(paneId)
+    focusTerminal(paneId)
+  }, [paneId])
+
+  const handler = useMemo(() => ({
+    open: () => setFindOpen(true),
+    close: () => handleClose(),
+    next: () => handleNext(),
+    prev: () => handlePrev(),
+    isOpen: () => findOpen,
+  }), [findOpen, handleClose, handleNext, handlePrev])
+
+  useEffect(() => {
+    if (isActive) {
+      findController.register(handler)
+      return () => findController.unregister(handler)
+    }
+  }, [isActive, handler])
 
   // Attach terminal DOM to this container on mount, park on unmount
   useEffect(() => {
@@ -125,6 +166,16 @@ export default function TerminalPane({ paneId }: Props) {
       className={`terminal-pane${isActive ? ' active' : ''}`}
       onMouseDown={() => setActive(paneId)}
       ref={containerRef}
-    />
+    >
+      {findOpen && (
+        <FindBar
+          searchTerm={searchTerm}
+          onSearchChange={handleSearchChange}
+          onNext={handleNext}
+          onPrev={handlePrev}
+          onClose={handleClose}
+        />
+      )}
+    </div>
   )
 }

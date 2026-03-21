@@ -851,6 +851,7 @@ body,
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
     background: #161616;
     border-radius: 8px;
     border: 1px solid #2a2a2a;
@@ -1040,4 +1041,75 @@ body,
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* ── Find Bar ── */
+.find-bar {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.find-bar-input {
+    width: 180px;
+    height: 24px;
+    padding: 0 8px;
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+}
+
+.find-bar-input:focus {
+    border-color: #74c0fc;
+}
+
+.find-bar-count {
+    font-size: 11px;
+    color: #888;
+    min-width: 40px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.find-bar-btn {
+    width: 24px;
+    height: 24px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.find-bar-btn:hover {
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #3a3a3a;
+}
+
+/* In browser panes, render as flex child between nav and content instead of floating */
+.browser-pane > .find-bar {
+    position: static;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+    justify-content: flex-end;
 }

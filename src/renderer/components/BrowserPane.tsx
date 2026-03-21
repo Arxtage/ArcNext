@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { usePaneStore, type BrowserPaneInfo } from '../store/paneStore'
+import { findController } from '../model/findController'
+import FindBar from './FindBar'
 
 interface Props {
   paneId: string
@@ -29,6 +31,54 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
   const canGoBack = pane?.canGoBack ?? false
   const canGoForward = pane?.canGoForward ?? false
   const isLoading = pane?.isLoading ?? false
+
+  // Find-in-page state
+  const [findOpen, setFindOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [matchInfo, setMatchInfo] = useState<{ active: number; total: number } | null>(null)
+
+  const handleFindSearch = useCallback((term: string) => {
+    setSearchTerm(term)
+    if (term) window.arcnext.browser.findInPage(paneId, term)
+    else { window.arcnext.browser.stopFindInPage(paneId); setMatchInfo(null) }
+  }, [paneId])
+
+  const handleFindNext = useCallback(() => {
+    if (searchTerm) window.arcnext.browser.findInPage(paneId, searchTerm, true)
+  }, [paneId, searchTerm])
+
+  const handleFindPrev = useCallback(() => {
+    if (searchTerm) window.arcnext.browser.findInPage(paneId, searchTerm, false)
+  }, [paneId, searchTerm])
+
+  const handleFindClose = useCallback(() => {
+    setFindOpen(false)
+    setSearchTerm('')
+    setMatchInfo(null)
+    window.arcnext.browser.stopFindInPage(paneId)
+  }, [paneId])
+
+  const findHandler = useMemo(() => ({
+    open: () => setFindOpen(true),
+    close: () => handleFindClose(),
+    next: () => handleFindNext(),
+    prev: () => handleFindPrev(),
+    isOpen: () => findOpen,
+  }), [findOpen, handleFindClose, handleFindNext, handleFindPrev])
+
+  useEffect(() => {
+    if (isActivePane) {
+      findController.register(findHandler)
+      return () => findController.unregister(findHandler)
+    }
+  }, [isActivePane, findHandler])
+
+  // Listen for found-in-page results
+  useEffect(() => {
+    return window.arcnext.browser.onFoundInPage((id, active, total) => {
+      if (id === paneId) setMatchInfo({ active, total })
+    })
+  }, [paneId])
 
   // Sync URL input with store URL when not editing
   useEffect(() => {
@@ -190,6 +240,17 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
           Undock
         </button>
       </div>
+      {findOpen && (
+        <FindBar
+          searchTerm={searchTerm}
+          onSearchChange={handleFindSearch}
+          onNext={handleFindNext}
+          onPrev={handleFindPrev}
+          onClose={handleFindClose}
+          activeMatch={matchInfo?.active}
+          totalMatches={matchInfo?.total}
+        />
+      )}
       <div className="browser-content" ref={placeholderRef}>
         {overlayActive && !error && (
           <div className="browser-placeholder">

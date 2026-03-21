@@ -119,6 +119,15 @@ const api = {
       ipcRenderer.on('browser:undocked', handler)
       return () => { ipcRenderer.removeListener('browser:undocked', handler) }
     },
+    findInPage: (paneId: string, text: string, forward?: boolean) =>
+      ipcRenderer.send('browser:findInPage', paneId, text, forward),
+    stopFindInPage: (paneId: string) =>
+      ipcRenderer.send('browser:stopFindInPage', paneId),
+    onFoundInPage: (cb: (paneId: string, activeMatch: number, totalMatches: number) => void) => {
+      const handler = (_event: IpcRendererEvent, paneId: string, activeMatch: number, totalMatches: number) => cb(paneId, activeMatch, totalMatches)
+      ipcRenderer.on('browser:foundInPage', handler)
+      return () => { ipcRenderer.removeListener('browser:foundInPage', handler) }
+    },
     onAppShortcut: (cb: (key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => void) => {
       const handler = (_event: IpcRendererEvent, key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => cb(key, meta, ctrl, shift, alt)
       ipcRenderer.on('browser:appShortcut', handler)

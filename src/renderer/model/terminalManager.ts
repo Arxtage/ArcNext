@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { SearchAddon } from '@xterm/addon-search'
 import { openExternalLink } from './openExternalLink'
 import '@xterm/xterm/css/xterm.css'
 
@@ -21,6 +22,7 @@ export function setCwdChangeCallback(cb: CwdCallback): void {
 interface ManagedTerminal {
   term: Terminal
   fit: FitAddon
+  search: SearchAddon
   webgl: WebglAddon | null
   removeDataListener: () => void
   removeExitListener: () => void
@@ -60,7 +62,9 @@ export function createTerminal(paneId: string, cwd?: string): Terminal {
   })
 
   const fit = new FitAddon()
+  const search = new SearchAddon()
   term.loadAddon(fit)
+  term.loadAddon(search)
   term.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)))
 
   // Open terminal into a parked host div immediately so DOM element always exists
@@ -68,6 +72,19 @@ export function createTerminal(paneId: string, cwd?: string): Terminal {
   host.style.cssText = 'width:100%;height:100%'
   parkingDiv.appendChild(host)
   term.open(host)
+
+  // Let the app handle Cmd+key shortcuts — don't let xterm consume them
+  term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+    if (e.type !== 'keydown') return true
+    if (e.metaKey && !e.altKey) {
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
+      if (['g', 'b', 'd', 'w', 't', 'f'].includes(k)) return false
+      if (k >= '1' && k <= '9') return false
+      if (e.shiftKey && (k === 'd' || e.key === 'Enter')) return false
+    }
+    if (e.metaKey && e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return false
+    return true
+  })
 
   // Load WebGL once — it survives re-parenting because we never detach from the document
   let webgl: WebglAddon | null = null
@@ -113,7 +130,7 @@ export function createTerminal(paneId: string, cwd?: string): Terminal {
     return true
   })
 
-  terminals.set(paneId, { term, fit, webgl, removeDataListener, removeExitListener })
+  terminals.set(paneId, { term, fit, search, webgl, removeDataListener, removeExitListener })
   return term
 }
 
@@ -176,6 +193,25 @@ export function blurTerminal(paneId: string): void {
 /** Write data directly to the PTY (for sending escape sequences) */
 export function writeToTerminalPTY(paneId: string, data: string): void {
   window.arcnext.pty.write(paneId, data)
+}
+
+/** Search forward in terminal scrollback */
+export function terminalFindNext(paneId: string, text: string): boolean {
+  const managed = terminals.get(paneId)
+  if (!managed) return false
+  return managed.search.findNext(text, { decorations: { activeMatchColorOverviewRuler: '#74c0fc' } })
+}
+
+/** Search backward in terminal scrollback */
+export function terminalFindPrevious(paneId: string, text: string): boolean {
+  const managed = terminals.get(paneId)
+  if (!managed) return false
+  return managed.search.findPrevious(text, { decorations: { activeMatchColorOverviewRuler: '#74c0fc' } })
+}
+
+/** Clear search decorations */
+export function terminalClearSearch(paneId: string): void {
+  terminals.get(paneId)?.search.clearDecorations()
 }
 
 /** Destroy the terminal and kill its PTY. Only call on explicit user close. */

@@ -55,6 +55,11 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
     onOpenExternal: (url) => {
       createExternalBrowserWindow(url)
     },
+    onFoundInPage: (activeMatch, totalMatches) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('browser:foundInPage', paneId, activeMatch, totalMatches)
+      }
+    },
     onBeforeInput: (input) => {
       const meta = input.meta || input.control
       if (!meta || input.type !== 'keyDown') return false
@@ -73,11 +78,11 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
       // Forward app shortcuts to the renderer via IPC
       const shouldForward =
         // Cmd (no shift, no alt): w, g, b, d, l, [, ]
-        (!input.shift && !input.alt && ['w', 'g', 'b', 'd', 'l', '[', ']'].includes(key)) ||
+        (!input.shift && !input.alt && ['w', 'g', 'b', 'd', 'l', 'f', '[', ']'].includes(key)) ||
         // Cmd (no alt): t, 1-9
         (!input.alt && (key === 't' || (key >= '1' && key <= '9'))) ||
         // Cmd+Shift (no alt): d, Enter
-        (input.shift && !input.alt && (key === 'd' || input.key === 'Enter')) ||
+        (input.shift && !input.alt && (key === 'd' || key === 'g' || input.key === 'Enter')) ||
         // Cmd+Alt: arrow keys
         (input.alt && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key))
 
@@ -161,6 +166,16 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
 
   ipcMain.on('browser:stop', (_e, paneId: string) => {
     views.get(paneId)?.view.webContents.stop()
+  })
+
+  ipcMain.on('browser:findInPage', (_e, paneId: string, text: string, forward?: boolean) => {
+    const managed = views.get(paneId)
+    if (!managed || !text) return
+    managed.view.webContents.findInPage(text, { forward: forward ?? true, findNext: true })
+  })
+
+  ipcMain.on('browser:stopFindInPage', (_e, paneId: string) => {
+    views.get(paneId)?.view.webContents.stopFindInPage('clearSelection')
   })
 }
 

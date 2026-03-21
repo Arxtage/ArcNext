@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import UnifiedPicker from './components/UnifiedPicker'
 import { usePaneStore, useActiveWorkspace, flushPersistPinned } from './store/paneStore'
 import { setTitleChangeCallback, setCwdChangeCallback, writeToTerminalPTY } from './model/terminalManager'
+import { findController } from './model/findController'
 import { NavDirection } from './model/splitTree'
 
 const ARROW_TO_DIR: Record<string, NavDirection> = {
@@ -182,6 +183,11 @@ export default function App() {
       const alt = e.altKey
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
 
+      // Escape — close find bar if open
+      if (key === 'Escape' && !meta && !alt && !e.shiftKey) {
+        if (findController.isOpen()) { e.preventDefault(); findController.close(); return }
+      }
+
       // DirPicker is a modal — suppress all shortcuts except Cmd+G to close
       if (dirPickerOpen) {
         if (meta && !e.shiftKey && !alt && key === 'g') {
@@ -284,10 +290,20 @@ export default function App() {
         }
       }
 
-      // Cmd+G — open directory picker
-      if (meta && !e.shiftKey && !alt && key === 'g') {
+      // Cmd+F — open find bar
+      if (meta && !e.shiftKey && !alt && key === 'f') {
         e.preventDefault()
-        openDirPicker()
+        findController.open()
+        return
+      }
+      // Cmd+G / Cmd+Shift+G — find next/prev if find bar open, otherwise dir picker
+      if (meta && !alt && key === 'g') {
+        e.preventDefault()
+        if (findController.isOpen()) {
+          e.shiftKey ? findController.prev() : findController.next()
+        } else if (!e.shiftKey) {
+          openDirPicker()
+        }
         return
       }
       // Cmd+B — toggle sidebar
