@@ -54,7 +54,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "Arxtage",
+      "owner": "armantsaturian",
       "repo": "arcnext"
     },
     "files": [
