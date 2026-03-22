@@ -5,139 +5,47 @@
 <h1 align="center">ArcNext</h1>
 
 <p align="center">
-  Arc x Terminal = ArcNext. Build for Agentic Era.
+  Arc x Terminal = ArcNext. Built for the Agentic Era.
 </p>
 
 ---
 
-ArcNext treats terminals the way Arc treats browser tabs — organized into workspaces with a vertical sidebar, split panes, and a **fully integrated web browser** that lets you dock web pages right alongside your shells. It's a terminal emulator and browser combined for the agentic era.
+A terminal emulator that treats shells the way Arc treats tabs — workspaces, split panes, and a fully integrated browser side by side. One app for everything you need while coding with AI agents.
 
-## Why build this?
+## Why?
 
 See the [original motivation](https://x.com/armantsaturian/status/2032392669763158205) and [Karpathy's take on the shift](https://x.com/karpathy/status/2031767720933634100).
 
 ## Features
 
-- **Smart new-tab picker (Cmd+T)** — Inline ghost text autocomplete powered by frecency-ranked directory and web history. Tab/Right Arrow accepts the suggestion, Enter executes immediately. Empty Enter opens a blank terminal.
-- **Integrated browser** — Dock web pages alongside terminals, undock back to external windows
-- **Vertical sidebar tabs** — Arc-style workspace list with color picker
-- **Split panes** — Vertical and horizontal splits within a workspace
-- **Combined split tabs** — Multi-pane workspaces collapse into one compact sidebar row
-- **Find in page (Cmd+F)** — Search text in browser and terminal panes, Cmd+G/Cmd+Shift+G for next/prev
-- **Drag-and-drop** — Drop files onto a terminal pane to insert the path
-- **Workspace merging** — Drag sidebar rows to merge workspaces; hold Shift for horizontal split
-- **Right-click to separate** — Split merged workspaces back into individual rows
-- **Collapsible sidebar** — Resize handle, traffic light hiding, Cmd+B toggle
-- **Per-pane close buttons** — Hover over a merged workspace row to close individual panes
-- **External browser windows** — Terminal links open in a dedicated browser window shell
-- **Dock / undock browser tabs** — Dock an external website into ArcNext as a new workspace without reloading, or undock it back out to its own window
+- **Workspaces** — Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.
+- **Split panes** — Terminals and browser views side by side in any layout.
+- **Integrated browser** — Dock any web page next to your terminals. Links from the terminal open in-app. Undock back to a standalone window anytime.
+- **Smart Cmd+T** — Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go. Empty Enter for a blank shell.
 
 ## Tech Stack
 
-| Component | Choice |
-|-----------|--------|
-| Runtime | Electron 34 |
-| Bundler | electron-vite + Vite 6 |
-| UI | React 19 + TypeScript |
-| Terminal | xterm.js 6 (WebGL, web-links, fit addons) |
-| PTY | node-pty |
-| State | Zustand 5 |
-| Packaging | electron-builder (macOS DMG, signed + notarized) |
-
-## Project Structure
-
-```
-src/
-├── main/              # Electron main process
-│   ├── main.ts        # Window lifecycle, IPC handlers
-│   ├── browserViewManager.ts
-│   ├── browserViewUtils.ts
-│   ├── dirHistory.ts  # Frecency-based directory history
-│   ├── webHistory.ts  # Frecency-based web history
-│   ├── externalBrowserWindows.ts
-│   └── pty.ts         # node-pty spawning and management
-├── preload/           # IPC bridges
-│   ├── preload.ts
-│   └── externalShellPreload.ts
-├── renderer/          # React UI + external browser shell UI
-│   ├── App.tsx        # Root component, keyboard shortcuts
-│   ├── external-shell.html
-│   ├── externalShell.ts
-│   ├── components/    # Sidebar, SplitView, TerminalPane, BrowserPane, UnifiedPicker, FindBar
-│   ├── model/         # splitTree (binary tree), terminalManager, browserManager, findController
-│   ├── store/         # paneStore (Zustand — workspaces, splits, panes)
-│   └── styles/        # global.css
-└── shared/            # Shared types, URL utilities
-```
-
-## Requirements
-
-- Node.js 20+
-- macOS (target platform)
+Electron 34 · React 19 · TypeScript · xterm.js 6 (WebGL) · node-pty · Zustand 5 · electron-vite
 
 ## Setup
 
 ```bash
 npm install
-```
-
-## Dev
-
-```bash
-npm run dev
-```
-
-## Build
-
-```bash
-npm run build          # production build
-npm run package        # build macOS DMG (signed + notarized)
+npm run dev            # development
+npm run package        # production DMG (signed + notarized)
 ```
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+T` | New tab picker (search dirs & URLs, or Enter for blank terminal) |
-| `Cmd+F` | Find in page (browser and terminal) |
-| `Cmd+G` / `Cmd+Shift+G` | Find next / previous (when find bar is open) |
-| `Cmd+D` | Split right |
-| `Cmd+Shift+D` | Split down |
-| `Cmd+Shift+Enter` | Undock active browser pane |
-| `Cmd+W` | Close active pane |
+| `Cmd+T` | New tab picker |
+| `Cmd+D` / `Cmd+Shift+D` | Split right / down |
+| `Cmd+W` | Close pane |
 | `Cmd+B` | Toggle sidebar |
-| `Cmd+1-9` | Switch workspace by index |
-| `Opt+Cmd+Arrows` | Navigate between panes |
-| `Opt+Left/Right` | Word jump (terminal) |
-| `Cmd+Left/Right` | Line start / end (terminal) |
-| `Opt+Backspace` | Delete previous word (terminal) |
-| `Cmd+Backspace` | Delete to line start (terminal) |
-
-### New Tab Picker (Cmd+T)
-
-| Key | Action |
-|-----|--------|
-| Type | Filter directories and websites by substring match |
-| `Tab` / `Right Arrow` | Accept ghost text suggestion (stay in picker) |
-| `Enter` | Accept and execute (open dir/URL, or blank terminal if empty) |
-| `Arrow Up/Down` | Navigate results |
-| `Escape` | Close picker |
-
-## External browser controls
-
-- Clicking a link in a terminal opens it in an external browser window.
-- The external browser window has a visible **Dock** button plus a native menu item.
-- **Dock shortcut (external window):** `Cmd+Shift+D` on macOS / `Ctrl+Shift+D` on Windows/Linux.
-- Docking always creates a **new workspace** in ArcNext.
-- Docked browser panes have a visible **Undock** button, and `Cmd+Shift+Enter` undocks the active browser pane.
-
-## Automated Codex PR reviews
-
-- Pull requests from branches in this repository trigger `.github/workflows/codex-pr-review.yml`.
-- The workflow runs `openai/codex-action` using the repo's `OPENAI_API_KEY` secret.
-- Reviews are posted back to the PR as a single updatable comment from `github-actions[bot]`.
-- Draft PRs and forked PRs are skipped by design.
+| `Cmd+1-9` | Switch workspace |
+| `Opt+Cmd+Arrows` | Navigate panes |
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT
