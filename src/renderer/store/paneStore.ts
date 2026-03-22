@@ -48,7 +48,7 @@ interface PaneStore {
   setSidebarWidth: (width: number) => void
 
   // Workspace actions
-  addWorkspace: () => void
+  addWorkspace: (cwd?: string) => void
   removeWorkspace: (id: string) => void
   switchWorkspace: (id: string) => void
   mergeWorkspaces: (targetId: string, sourceId: string, direction: Direction) => void
@@ -126,8 +126,8 @@ function destroyPane(pane: PaneInfo): void {
   }
 }
 
-function makeWorkspace(name?: string): { workspace: Workspace; pane: PaneInfo } {
-  const pane = makeTerminalPane()
+function makeWorkspace(name?: string, cwd?: string): { workspace: Workspace; pane: PaneInfo } {
+  const pane = makeTerminalPane(cwd)
   const id = genWorkspaceId()
   return {
     workspace: {
@@ -158,9 +158,9 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setSidebarWidth: (width) => set({ sidebarWidth: Math.max(150, Math.min(400, width)) }),
 
-  addWorkspace: () => {
+  addWorkspace: (cwd?: string) => {
     const { workspaces, panes } = get()
-    const { workspace, pane } = makeWorkspace()
+    const { workspace, pane } = makeWorkspace(undefined, cwd)
     const newPanes = new Map(panes)
     newPanes.set(pane.id, pane)
     set({

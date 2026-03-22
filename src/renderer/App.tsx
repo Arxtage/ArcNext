@@ -31,7 +31,6 @@ export default function App() {
   const activeWorkspaceId = usePaneStore((s) => s.activeWorkspaceId)
   const splitActive = usePaneStore((s) => s.splitActive)
   const closePane = usePaneStore((s) => s.closePane)
-  const addWorkspace = usePaneStore((s) => s.addWorkspace)
   const setPaneTitle = usePaneStore((s) => s.setPaneTitle)
   const setPaneCwd = usePaneStore((s) => s.setPaneCwd)
   const addBrowserWorkspace = usePaneStore((s) => s.addBrowserWorkspace)
@@ -48,10 +47,11 @@ export default function App() {
   const workspaces = usePaneStore((s) => s.workspaces)
   const setOverlay = usePaneStore((s) => s.setOverlay)
   const wakeWorkspace = usePaneStore((s) => s.wakeWorkspace)
-  const [dirPickerOpen, setDirPickerOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
-  const openDirPicker = () => { setDirPickerOpen(true); setOverlay('dirPicker', true) }
-  const closeDirPicker = () => { setDirPickerOpen(false); setOverlay('dirPicker', false) }
+  const openPicker = () => { setPickerOpen(true); setOverlay('picker', true) }
+  const closePicker = () => { setPickerOpen(false); setOverlay('picker', false) }
+  const togglePicker = () => { pickerOpen ? closePicker() : openPicker() }
 
   // Prevent Electron's default file-drop navigation so per-component drop handlers work
   useEffect(() => {
@@ -188,11 +188,11 @@ export default function App() {
         if (findController.isOpen()) { e.preventDefault(); findController.close(); return }
       }
 
-      // DirPicker is a modal — suppress all shortcuts except Cmd+G to close
-      if (dirPickerOpen) {
-        if (meta && !e.shiftKey && !alt && key === 'g') {
+      // Picker is a modal — suppress all shortcuts except Cmd+T to close
+      if (pickerOpen) {
+        if (meta && !e.shiftKey && !alt && key === 't') {
           e.preventDefault()
-          closeDirPicker()
+          closePicker()
           return
         }
         return
@@ -296,14 +296,10 @@ export default function App() {
         findController.open()
         return
       }
-      // Cmd+G / Cmd+Shift+G — find next/prev if find bar open, otherwise dir picker
-      if (meta && !alt && key === 'g') {
+      // Cmd+G / Cmd+Shift+G — find next/prev (only when find bar is open)
+      if (meta && !alt && key === 'g' && findController.isOpen()) {
         e.preventDefault()
-        if (findController.isOpen()) {
-          e.shiftKey ? findController.prev() : findController.next()
-        } else if (!e.shiftKey) {
-          openDirPicker()
-        }
+        e.shiftKey ? findController.prev() : findController.next()
         return
       }
       // Cmd+B — toggle sidebar
@@ -336,10 +332,10 @@ export default function App() {
         }
         return
       }
-      // Cmd+T — new workspace
+      // Cmd+T — open picker (new tab)
       if (meta && !alt && key === 't') {
         e.preventDefault()
-        addWorkspace()
+        togglePicker()
         return
       }
       // Cmd+1-9 — switch workspace by index
@@ -357,7 +353,7 @@ export default function App() {
 
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [splitActive, closePane, addWorkspace, switchWorkspace, navigateDir, toggleSidebar, undockBrowserPane, wakeWorkspace, ws, workspaces, dirPickerOpen, activePaneType, focusState, setFocusState])
+  }, [splitActive, closePane, switchWorkspace, navigateDir, toggleSidebar, undockBrowserPane, wakeWorkspace, ws, workspaces, pickerOpen, activePaneType, focusState, setFocusState])
 
   return (
     <div id="app">
@@ -369,7 +365,7 @@ export default function App() {
           </div>
         ))}
       </div>
-      {dirPickerOpen && <UnifiedPicker onClose={closeDirPicker} />}
+      {pickerOpen && <UnifiedPicker onClose={closePicker} />}
     </div>
   )
 }

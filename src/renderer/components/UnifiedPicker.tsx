@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
-import { writeToTerminalPTY, focusTerminal } from '../model/terminalManager'
-import { usePaneStore, useActiveWorkspace, type BrowserPaneInfo } from '../store/paneStore'
-import { allPaneIds } from '../model/splitTree'
+import { usePaneStore, useActiveWorkspace } from '../store/paneStore'
 import type { DirEntry, WebEntry } from '../../shared/types'
 import {
-  normalizeUrl,
   ensureProtocol,
   hostnameFromUrl,
   bareUrl,
@@ -12,7 +9,7 @@ import {
   looksLikeUrl
 } from '../../shared/urlUtils'
 
-type PickerItemType = 'dir' | 'web' | 'web-open' | 'web-switch' | 'web-open-new'
+type PickerItemType = 'dir' | 'web' | 'web-open'
 
 interface PickerItem {
   type: PickerItemType
@@ -24,8 +21,6 @@ interface PickerItem {
   url?: string
   title?: string
   faviconUrl?: string
-  switchWorkspaceId?: string
-  switchWorkspaceName?: string
 }
 
 interface Props {
@@ -65,11 +60,8 @@ export default function UnifiedPicker({ onClose }: Props) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
-  const ws = useActiveWorkspace()
-  const panes = usePaneStore((s) => s.panes)
-  const workspaces = usePaneStore((s) => s.workspaces)
+  const addWorkspace = usePaneStore((s) => s.addWorkspace)
   const addBrowserWorkspace = usePaneStore((s) => s.addBrowserWorkspace)
-  const switchWorkspace = usePaneStore((s) => s.switchWorkspace)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -132,70 +124,24 @@ export default function UnifiedPicker({ onClose }: Props) {
     return items.sort((a, b) => b.score - a.score).slice(0, limit)
   }, [query, allWebEntries])
 
-  const openBrowserPanes = useMemo(() => {
-    const result: Array<{ paneId: string; url: string; workspaceId: string; workspaceName: string }> = []
-    for (const w of workspaces) {
-      for (const pid of allPaneIds(w.tree)) {
-        const pane = panes.get(pid)
-        if (pane?.type === 'browser') {
-          const bp = pane as BrowserPaneInfo
-          result.push({
-            paneId: pid,
-            url: bp.url,
-            workspaceId: w.id,
-            workspaceName: w.name || bp.title || hostnameFromUrl(bp.url)
-          })
-        }
-      }
-    }
-    return result
-  }, [workspaces, panes])
-
   const directUrlItems = useMemo(() => {
     const items: PickerItem[] = []
     if (!query || !looksLikeUrl(query)) return items
 
     const targetUrl = ensureProtocol(query)
-    const normalizedTarget = normalizeUrl(targetUrl)
-    const match = openBrowserPanes.find(
-      (p) => normalizeUrl(p.url) === normalizedTarget
-    )
     const bareTarget = bareUrl(targetUrl)
 
-    if (match) {
-      items.push({
-        type: 'web-switch',
-        key: `switch:${match.workspaceId}`,
-        label: bareTarget,
-        displayName: `Switch to "${match.workspaceName}"`,
-        score: Infinity,
-        url: targetUrl,
-        title: `Switch to "${match.workspaceName}"`,
-        switchWorkspaceId: match.workspaceId,
-        switchWorkspaceName: match.workspaceName
-      })
-      items.push({
-        type: 'web-open-new',
-        key: `open-new:${targetUrl}`,
-        label: bareTarget,
-        displayName: 'Open in new workspace',
-        score: Infinity,
-        url: targetUrl,
-        title: 'Open in new workspace'
-      })
-    } else {
-      items.push({
-        type: 'web-open',
-        key: `open:${targetUrl}`,
-        label: bareTarget,
-        displayName: `Open ${query}`,
-        score: Infinity,
-        url: targetUrl,
-        title: `Open ${query}`
-      })
-    }
+    items.push({
+      type: 'web-open',
+      key: `open:${targetUrl}`,
+      label: bareTarget,
+      displayName: `Open ${query}`,
+      score: Infinity,
+      url: targetUrl,
+      title: `Open ${query}`
+    })
     return items
-  }, [query, openBrowserPanes])
+  }, [query])
 
   const allItems = useMemo(
     () => [...sortedDirs, ...directUrlItems, ...sortedWebs],
@@ -224,39 +170,28 @@ export default function UnifiedPicker({ onClose }: Props) {
     item?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
 
-  const selectDir = useCallback((path: string) => {
-    if (!ws) return
-    const escaped = path.replace(/'/g, "'\\''")
-    writeToTerminalPTY(ws.activePaneId, `cd '${escaped}'\n`)
-    onClose()
-    setTimeout(() => focusTerminal(ws.activePaneId), 0)
-  }, [ws, onClose])
-
-  const selectWeb = useCallback((url: string) => {
-    addBrowserWorkspace(ensureProtocol(url))
-    onClose()
-  }, [addBrowserWorkspace, onClose])
-
-  const selectSwitch = useCallback((workspaceId: string) => {
-    switchWorkspace(workspaceId)
-    onClose()
-  }, [switchWorkspace, onClose])
-
   const handleSelect = useCallback((item: PickerItem) => {
     switch (item.type) {
       case 'dir':
-        if (item.dirPath) selectDir(item.dirPath)
+        if (item.dirPath) {
+          addWorkspace(item.dirPath)
+          onClose()
+        }
         break
       case 'web':
       case 'web-open':
-      case 'web-open-new':
-        if (item.url) selectWeb(item.url)
-        break
-      case 'web-switch':
-        if (item.switchWorkspaceId) selectSwitch(item.switchWorkspaceId)
+        if (item.url) {
+          addBrowserWorkspace(ensureProtocol(item.url))
+          onClose()
+        }
         break
     }
-  }, [selectDir, selectWeb, selectSwitch])
+  }, [addWorkspace, addBrowserWorkspace, onClose])
+
+  const handleNewBlankWorkspace = useCallback(() => {
+    addWorkspace()
+    onClose()
+  }, [addWorkspace, onClose])
 
   const acceptGhost = useCallback(() => {
     if (!ghostText) return false
@@ -271,7 +206,6 @@ export default function UnifiedPicker({ onClose }: Props) {
       case 'Escape':
         e.preventDefault()
         onClose()
-        if (ws) setTimeout(() => focusTerminal(ws.activePaneId), 0)
         break
       case 'Tab':
         e.preventDefault()
@@ -295,10 +229,14 @@ export default function UnifiedPicker({ onClose }: Props) {
         break
       case 'Enter':
         e.preventDefault()
-        if (allItems[selectedIndex]) handleSelect(allItems[selectedIndex])
+        if (allItems[selectedIndex]) {
+          handleSelect(allItems[selectedIndex])
+        } else {
+          handleNewBlankWorkspace()
+        }
         break
     }
-  }, [allItems, selectedIndex, handleSelect, onClose, ws, acceptGhost, ghostText])
+  }, [allItems, selectedIndex, handleSelect, handleNewBlankWorkspace, onClose, acceptGhost, ghostText])
 
   return (
     <div className="picker-overlay" onClick={onClose}>
@@ -311,7 +249,7 @@ export default function UnifiedPicker({ onClose }: Props) {
           <input
             ref={inputRef}
             className="picker-input"
-            placeholder="Go to directory or website..."
+            placeholder="New tab — directory or website..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -357,9 +295,6 @@ export default function UnifiedPicker({ onClose }: Props) {
                     <div className="picker-item-web-row">
                       <span className="picker-item-favicon-icon">{'\u{1F310}'}</span>
                       <span className="picker-item-name">{item.displayName}</span>
-                      {item.type === 'web-switch' && (
-                        <span className="picker-item-badge">open</span>
-                      )}
                     </div>
                   </div>
                 )
@@ -399,7 +334,7 @@ export default function UnifiedPicker({ onClose }: Props) {
             <div className="picker-empty">No matching results</div>
           )}
           {allItems.length === 0 && !query && (
-            <div className="picker-empty">No history yet</div>
+            <div className="picker-empty">No history yet — press Enter for a blank terminal</div>
           )}
         </div>
       </div>
