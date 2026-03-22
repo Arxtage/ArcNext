@@ -1,8 +1,9 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
+import { normalizeUrl, isValidUrl } from '../shared/urlUtils'
 
-interface WebEntry {
+interface StoredWebEntry {
   url: string
   title: string
   faviconUrl: string
@@ -13,26 +14,10 @@ interface WebEntry {
 const HISTORY_PATH = join(app.getPath('userData'), 'web-history.json')
 const MAX_ENTRIES = 500
 
-let entries: Map<string, WebEntry> = new Map()
+let entries: Map<string, StoredWebEntry> = new Map()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 
-function normalizeUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    u.hostname = u.hostname.toLowerCase()
-    let normalized = u.toString()
-    if (normalized.endsWith('/')) normalized = normalized.slice(0, -1)
-    return normalized
-  } catch {
-    return url
-  }
-}
-
-function isValidUrl(url: string): boolean {
-  return /^https?:\/\//i.test(url)
-}
-
-function frecencyScore(entry: WebEntry, now: number): number {
+function frecencyScore(entry: StoredWebEntry, now: number): number {
   const ageHours = (now - entry.lastVisit) / (1000 * 60 * 60)
   let recencyWeight: number
   if (ageHours < 1) recencyWeight = 4
@@ -64,7 +49,7 @@ function recordVisit(url: string, title?: string, faviconUrl?: string): void {
   debouncedFlush()
 }
 
-function queryEntries(): Array<WebEntry & { score: number }> {
+function queryEntries(): Array<StoredWebEntry & { score: number }> {
   const now = Date.now()
   return [...entries.values()]
     .map((e) => ({ ...e, score: frecencyScore(e, now) }))
@@ -86,7 +71,7 @@ function loadFromDisk(): void {
     const raw = readFileSync(HISTORY_PATH, 'utf-8')
     const data = JSON.parse(raw)
     if (data.version === 1 && Array.isArray(data.entries)) {
-      entries = new Map(data.entries.map((e: WebEntry) => [e.url, e]))
+      entries = new Map(data.entries.map((e: StoredWebEntry) => [e.url, e]))
     }
   } catch {
     // file doesn't exist or is corrupt — start fresh

@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 
-interface DirEntry {
+interface StoredStoredDirEntry {
   path: string
   visitCount: number
   lastVisit: number
@@ -11,10 +11,10 @@ interface DirEntry {
 const HISTORY_PATH = join(app.getPath('userData'), 'dir-history.json')
 const MAX_ENTRIES = 500
 
-let entries: Map<string, DirEntry> = new Map()
+let entries: Map<string, StoredDirEntry> = new Map()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 
-function frecencyScore(entry: DirEntry, now: number): number {
+function frecencyScore(entry: StoredDirEntry, now: number): number {
   const ageHours = (now - entry.lastVisit) / (1000 * 60 * 60)
   let recencyWeight: number
   if (ageHours < 1) recencyWeight = 4
@@ -36,7 +36,7 @@ function recordVisit(path: string): void {
   debouncedFlush()
 }
 
-function queryEntries(): Array<DirEntry & { score: number }> {
+function queryEntries(): Array<StoredDirEntry & { score: number }> {
   const now = Date.now()
   return [...entries.values()]
     .map((e) => ({ ...e, score: frecencyScore(e, now) }))
@@ -58,7 +58,7 @@ function loadFromDisk(): void {
     const raw = readFileSync(HISTORY_PATH, 'utf-8')
     const data = JSON.parse(raw)
     if (data.version === 1 && Array.isArray(data.entries)) {
-      entries = new Map(data.entries.map((e: DirEntry) => [e.path, e]))
+      entries = new Map(data.entries.map((e: StoredDirEntry) => [e.path, e]))
     }
   } catch {
     // file doesn't exist or is corrupt — start fresh
