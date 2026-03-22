@@ -18,9 +18,12 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 
 ## Features
 
+- **Smart new-tab picker (Cmd+T)** — Inline ghost text autocomplete powered by frecency-ranked directory and web history. Tab/Right Arrow accepts the suggestion, Enter executes immediately. Empty Enter opens a blank terminal.
+- **Integrated browser** — Dock web pages alongside terminals, undock back to external windows
 - **Vertical sidebar tabs** — Arc-style workspace list with color picker
 - **Split panes** — Vertical and horizontal splits within a workspace
 - **Combined split tabs** — Multi-pane workspaces collapse into one compact sidebar row
+- **Find in page (Cmd+F)** — Search text in browser and terminal panes, Cmd+G/Cmd+Shift+G for next/prev
 - **Drag-and-drop** — Drop files onto a terminal pane to insert the path
 - **Workspace merging** — Drag sidebar rows to merge workspaces; hold Shift for horizontal split
 - **Right-click to separate** — Split merged workspaces back into individual rows
@@ -39,7 +42,7 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 | Terminal | xterm.js 6 (WebGL, web-links, fit addons) |
 | PTY | node-pty |
 | State | Zustand 5 |
-| Packaging | electron-builder (macOS DMG) |
+| Packaging | electron-builder (macOS DMG, signed + notarized) |
 
 ## Project Structure
 
@@ -49,6 +52,8 @@ src/
 │   ├── main.ts        # Window lifecycle, IPC handlers
 │   ├── browserViewManager.ts
 │   ├── browserViewUtils.ts
+│   ├── dirHistory.ts  # Frecency-based directory history
+│   ├── webHistory.ts  # Frecency-based web history
 │   ├── externalBrowserWindows.ts
 │   └── pty.ts         # node-pty spawning and management
 ├── preload/           # IPC bridges
@@ -58,11 +63,11 @@ src/
 │   ├── App.tsx        # Root component, keyboard shortcuts
 │   ├── external-shell.html
 │   ├── externalShell.ts
-│   ├── components/    # Sidebar, SplitView, TerminalPane
-│   ├── model/         # splitTree (binary tree), terminalManager
+│   ├── components/    # Sidebar, SplitView, TerminalPane, BrowserPane, UnifiedPicker, FindBar
+│   ├── model/         # splitTree (binary tree), terminalManager, browserManager, findController
 │   ├── store/         # paneStore (Zustand — workspaces, splits, panes)
 │   └── styles/        # global.css
-└── shared/            # Shared types (IPC channel definitions)
+└── shared/            # Shared types, URL utilities
 ```
 
 ## Requirements
@@ -86,23 +91,16 @@ npm run dev
 
 ```bash
 npm run build          # production build
-npm run package        # build macOS DMG
+npm run package        # build macOS DMG (signed + notarized)
 ```
-
-## Automated Codex PR reviews
-
-- Pull requests from branches in this repository trigger `.github/workflows/codex-pr-review.yml`.
-- The workflow runs `openai/codex-action` using the repo's `OPENAI_API_KEY` secret.
-- The prompt is based on OpenAI's published Codex PR-review example and returns structured JSON with Codex's own merge recommendation.
-- Reviews are posted back to the PR as a single updatable comment from `github-actions[bot]`, and the `Codex merge recommendation` check passes or fails based on Codex's verdict.
-- Draft PRs and forked PRs are skipped by design, so API secrets are not exposed to forks.
-
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+T` | New workspace |
+| `Cmd+T` | New tab picker (search dirs & URLs, or Enter for blank terminal) |
+| `Cmd+F` | Find in page (browser and terminal) |
+| `Cmd+G` / `Cmd+Shift+G` | Find next / previous (when find bar is open) |
 | `Cmd+D` | Split right |
 | `Cmd+Shift+D` | Split down |
 | `Cmd+Shift+Enter` | Undock active browser pane |
@@ -110,10 +108,20 @@ npm run package        # build macOS DMG
 | `Cmd+B` | Toggle sidebar |
 | `Cmd+1-9` | Switch workspace by index |
 | `Opt+Cmd+Arrows` | Navigate between panes |
-| `Opt+Left/Right` | Word jump |
-| `Cmd+Left/Right` | Line start / end |
-| `Opt+Backspace` | Delete previous word |
-| `Cmd+Backspace` | Delete to line start |
+| `Opt+Left/Right` | Word jump (terminal) |
+| `Cmd+Left/Right` | Line start / end (terminal) |
+| `Opt+Backspace` | Delete previous word (terminal) |
+| `Cmd+Backspace` | Delete to line start (terminal) |
+
+### New Tab Picker (Cmd+T)
+
+| Key | Action |
+|-----|--------|
+| Type | Filter directories and websites by substring match |
+| `Tab` / `Right Arrow` | Accept ghost text suggestion (stay in picker) |
+| `Enter` | Accept and execute (open dir/URL, or blank terminal if empty) |
+| `Arrow Up/Down` | Navigate results |
+| `Escape` | Close picker |
 
 ## External browser controls
 
@@ -122,6 +130,13 @@ npm run package        # build macOS DMG
 - **Dock shortcut (external window):** `Cmd+Shift+D` on macOS / `Ctrl+Shift+D` on Windows/Linux.
 - Docking always creates a **new workspace** in ArcNext.
 - Docked browser panes have a visible **Undock** button, and `Cmd+Shift+Enter` undocks the active browser pane.
+
+## Automated Codex PR reviews
+
+- Pull requests from branches in this repository trigger `.github/workflows/codex-pr-review.yml`.
+- The workflow runs `openai/codex-action` using the repo's `OPENAI_API_KEY` secret.
+- Reviews are posted back to the PR as a single updatable comment from `github-actions[bot]`.
+- Draft PRs and forked PRs are skipped by design.
 
 ## License
 
