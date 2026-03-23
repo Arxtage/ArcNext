@@ -15,7 +15,7 @@ import { createTerminal, destroyTerminal } from '../model/terminalManager'
 import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
 import { usePaneStore } from '../store/paneStore'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo } from '../../shared/types'
-import { allPaneIds } from '../model/splitTree'
+import { allPaneIds } from '../model/gridLayout'
 
 function resetStore() {
   // Reset zustand store to initial state
@@ -59,11 +59,9 @@ describe('PaneInfo discriminated union', () => {
           isLoading: false
         }
     if (pane.type === 'terminal') {
-      // TypeScript should allow cwd access here
       expect(pane.cwd).toBe('')
     }
     if (pane.type === 'browser') {
-      // This block shouldn't run but verifies narrowing compiles
       expect(pane.url).toBeDefined()
     }
   })
@@ -89,25 +87,33 @@ describe('paneStore — terminal pane basics', () => {
     expect(createTerminal).toHaveBeenCalledTimes(callCount + 1)
   })
 
-  it('splitActive creates a new terminal pane', () => {
+  it('splitActive creates a new terminal pane (horizontal = new column)', () => {
     const { panes: before } = usePaneStore.getState()
     usePaneStore.getState().splitActive('horizontal')
     const { panes: after, workspaces } = usePaneStore.getState()
     expect(after.size).toBe(before.size + 1)
     const ws = workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
     expect(ids).toHaveLength(2)
+    expect(ws.grid.columns).toHaveLength(2)
     for (const id of ids) {
       expect(after.get(id)!.type).toBe('terminal')
     }
   })
 
+  it('splitActive vertical adds a row in the same column', () => {
+    usePaneStore.getState().splitActive('vertical')
+    const { workspaces } = usePaneStore.getState()
+    const ws = workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
+    expect(ws.grid.columns).toHaveLength(1)
+    expect(ws.grid.columns[0].rows).toHaveLength(2)
+  })
+
   it('closePane on terminal calls destroyTerminal', () => {
-    // Split to have 2 panes so closing one doesn't remove the workspace
     usePaneStore.getState().splitActive('horizontal')
     const { workspaces } = usePaneStore.getState()
     const ws = workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
     const targetId = ids[0]
 
     vi.clearAllMocks()
@@ -119,12 +125,11 @@ describe('paneStore — terminal pane basics', () => {
 
   it('removeWorkspace destroys all terminal panes', () => {
     usePaneStore.getState().splitActive('horizontal')
-    // Add a second workspace so we can remove the first
     usePaneStore.getState().addWorkspace()
 
     const { workspaces } = usePaneStore.getState()
     const firstWs = workspaces[0]
-    const paneIds = allPaneIds(firstWs.tree)
+    const paneIds = allPaneIds(firstWs.grid)
 
     vi.clearAllMocks()
     usePaneStore.getState().removeWorkspace(firstWs.id)
@@ -166,15 +171,13 @@ describe('paneStore — browser pane actions', () => {
     usePaneStore.getState().splitActiveBrowser('horizontal', 'https://github.com')
     const { workspaces, panes, activeWorkspaceId } = usePaneStore.getState()
     const ws = workspaces.find(w => w.id === activeWorkspaceId)!
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
 
     expect(ids).toHaveLength(2)
-    // Active pane should be the new browser pane
     const browserPane = panes.get(ws.activePaneId)!
     expect(browserPane.type).toBe('browser')
     expect((browserPane as BrowserPaneInfo).url).toBe('https://github.com')
 
-    // The other pane should be the original terminal
     const otherPaneId = ids.find(id => id !== ws.activePaneId)!
     expect(panes.get(otherPaneId)!.type).toBe('terminal')
   })
@@ -241,11 +244,9 @@ describe('paneStore — type-aware cleanup', () => {
   beforeEach(resetStore)
 
   it('closePane on browser pane calls destroyBrowserView, not destroyTerminal', () => {
-    // Create a mixed workspace: terminal + browser
     usePaneStore.getState().splitActiveBrowser('horizontal', 'https://example.com')
     const { workspaces, activeWorkspaceId } = usePaneStore.getState()
     const ws = workspaces.find(w => w.id === activeWorkspaceId)!
-    // Active pane is the browser pane
     const browserPaneId = ws.activePaneId
 
     vi.clearAllMocks()
@@ -272,12 +273,11 @@ describe('paneStore — type-aware cleanup', () => {
 
   it('removeWorkspace with mixed panes calls correct destroy for each type', () => {
     usePaneStore.getState().splitActiveBrowser('horizontal', 'https://example.com')
-    // Need another workspace so we can remove this one
     usePaneStore.getState().addWorkspace()
 
     const { workspaces } = usePaneStore.getState()
     const mixedWs = workspaces[0]
-    const ids = allPaneIds(mixedWs.tree)
+    const ids = allPaneIds(mixedWs.grid)
     const { panes } = usePaneStore.getState()
 
     const terminalIds = ids.filter(id => panes.get(id)?.type === 'terminal')
@@ -318,7 +318,6 @@ describe('paneStore — setPaneTitle preserves type discriminator', () => {
     const ws = usePaneStore.getState().workspaces[usePaneStore.getState().workspaces.length - 1]
     const paneId = ws.activePaneId
 
-    // Set some nav state first
     usePaneStore.getState().setBrowserPaneNavState(paneId, true, false)
 
     usePaneStore.getState().setPaneTitle(paneId, 'Example Site')
@@ -360,7 +359,7 @@ describe('paneStore — dock/undock lifecycle', () => {
     usePaneStore.getState().removeUndockedBrowserPane(browserPaneId)
 
     const updatedWs = usePaneStore.getState().workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
-    const ids = allPaneIds(updatedWs.tree)
+    const ids = allPaneIds(updatedWs.grid)
     expect(ids).toHaveLength(1)
     expect(usePaneStore.getState().panes.has(browserPaneId)).toBe(false)
     expect(usePaneStore.getState().panes.get(ids[0])!.type).toBe('terminal')
@@ -371,7 +370,7 @@ describe('paneStore — dock/undock lifecycle', () => {
       workspaces: [{
         id: 'ws-browser',
         name: 'Workspace 1',
-        tree: { type: 'leaf', paneId: 'browser-1' },
+        grid: { columns: [{ width: 1, rows: [{ height: 1, paneId: 'browser-1' }] }] },
         activePaneId: 'browser-1'
       }],
       activeWorkspaceId: 'ws-browser',
@@ -429,7 +428,6 @@ describe('paneStore — mixed workspace operations', () => {
   beforeEach(resetStore)
 
   it('mergeWorkspaces works with terminal + browser workspaces', () => {
-    // Workspace 0 is terminal, add a browser workspace
     usePaneStore.getState().addBrowserWorkspace('https://example.com')
     const { workspaces } = usePaneStore.getState()
     expect(workspaces).toHaveLength(2)
@@ -441,7 +439,7 @@ describe('paneStore — mixed workspace operations', () => {
     const merged = usePaneStore.getState().workspaces
     expect(merged).toHaveLength(1)
 
-    const ids = allPaneIds(merged[0].tree)
+    const ids = allPaneIds(merged[0].grid)
     expect(ids).toHaveLength(2)
 
     const { panes } = usePaneStore.getState()
@@ -450,25 +448,21 @@ describe('paneStore — mixed workspace operations', () => {
     expect(types).toContain('browser')
   })
 
-  it('separateWorkspace preserves pane types', () => {
-    // Create a mixed workspace
-    usePaneStore.getState().splitActiveBrowser('horizontal', 'https://example.com')
+  it('separateWorkspace splits columns into separate workspaces', () => {
+    // Create a 2-column workspace
+    usePaneStore.getState().splitActive('horizontal')
 
     const { workspaces } = usePaneStore.getState()
     expect(workspaces).toHaveLength(1)
-    expect(workspaces[0].tree.type).toBe('split')
+    expect(workspaces[0].grid.columns.length).toBe(2)
 
     usePaneStore.getState().separateWorkspace(workspaces[0].id)
     const separated = usePaneStore.getState().workspaces
     expect(separated).toHaveLength(2)
 
-    const { panes } = usePaneStore.getState()
-    const ws0Pane = panes.get(separated[0].activePaneId)!
-    const ws1Pane = panes.get(separated[1].activePaneId)!
-
-    // One should be terminal, one should be browser (order depends on tree structure)
-    const types = [ws0Pane.type, ws1Pane.type].sort()
-    expect(types).toEqual(['browser', 'terminal'])
+    // Each should have 1 column
+    expect(separated[0].grid.columns).toHaveLength(1)
+    expect(separated[1].grid.columns).toHaveLength(1)
   })
 })
 
@@ -525,13 +519,11 @@ describe('paneStore — focusState tracking', () => {
     const ws = workspaces.find(w => w.id === activeWorkspaceId)!
     const browserPaneId = ws.activePaneId
 
-    // Switch to the terminal pane first
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
     const terminalPaneId = ids.find(id => id !== browserPaneId)!
     usePaneStore.getState().setActivePaneInWorkspace(terminalPaneId)
     expect(usePaneStore.getState().focusState).toBe('terminal')
 
-    // Switch back to browser
     usePaneStore.getState().setActivePaneInWorkspace(browserPaneId)
     expect(usePaneStore.getState().focusState).toBe('browser')
   })
@@ -543,23 +535,20 @@ describe('paneStore — focusState tracking', () => {
     const browserPaneId = ws.activePaneId
     expect(usePaneStore.getState().focusState).toBe('browser')
 
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
     const terminalPaneId = ids.find(id => id !== browserPaneId)!
     usePaneStore.getState().setActivePaneInWorkspace(terminalPaneId)
     expect(usePaneStore.getState().focusState).toBe('terminal')
   })
 
   it('switchWorkspace to a browser workspace updates focusState via subscriber', () => {
-    // Add a browser workspace
     usePaneStore.getState().addBrowserWorkspace('https://example.com')
     expect(usePaneStore.getState().focusState).toBe('browser')
 
-    // Switch back to terminal workspace
     const terminalWsId = usePaneStore.getState().workspaces[0].id
     usePaneStore.getState().switchWorkspace(terminalWsId)
     expect(usePaneStore.getState().focusState).toBe('terminal')
 
-    // Switch to browser workspace
     const browserWsId = usePaneStore.getState().workspaces[1].id
     usePaneStore.getState().switchWorkspace(browserWsId)
     expect(usePaneStore.getState().focusState).toBe('browser')
@@ -576,11 +565,9 @@ describe('paneStore — focusState tracking', () => {
     const ws = workspaces.find(w => w.id === activeWorkspaceId)!
     const browserPaneId = ws.activePaneId
 
-    // Enter UI mode
     usePaneStore.getState().setFocusState('ui')
     expect(usePaneStore.getState().focusState).toBe('ui')
 
-    // Click browser pane — should exit UI mode to 'browser'
     usePaneStore.getState().setActivePaneInWorkspace(browserPaneId)
     expect(usePaneStore.getState().focusState).toBe('browser')
   })
@@ -592,14 +579,12 @@ describe('paneStore — focusState tracking', () => {
   })
 
   it('closePane on active browser pane updates focusState to match new active pane', () => {
-    // Create mixed workspace: terminal + browser
     usePaneStore.getState().splitActiveBrowser('horizontal', 'https://example.com')
     const { workspaces, activeWorkspaceId } = usePaneStore.getState()
     const ws = workspaces.find(w => w.id === activeWorkspaceId)!
     const browserPaneId = ws.activePaneId
     expect(usePaneStore.getState().focusState).toBe('browser')
 
-    // Close the browser pane — should fall back to the terminal pane
     usePaneStore.getState().closePane(browserPaneId)
     expect(usePaneStore.getState().focusState).toBe('terminal')
   })

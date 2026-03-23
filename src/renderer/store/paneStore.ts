@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import {
-  SplitNode, leaf, split, splitNode, removeNode, allPaneIds, adjacentPaneId, Direction,
-  navigateDirection, NavDirection
-} from '../model/splitTree'
+  GridLayout, Direction, createGrid, addColumn, addRowBelow, removePane,
+  allPaneIds, adjacentPaneId, navigateDirection, mergeGrids, mergeGridAsRows,
+  NavDirection
+} from '../model/gridLayout'
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
 import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo, SerializedPane, PinnedWorkspaceEntry } from '../../shared/types'
@@ -23,7 +24,7 @@ export type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo }
 export interface Workspace {
   id: string
   name: string
-  tree: SplitNode
+  grid: GridLayout
   activePaneId: string
   color?: string
   pinned?: boolean
@@ -67,7 +68,7 @@ interface PaneStore {
   navigateDir: (dir: NavDirection) => void
   setPaneTitle: (id: string, title: string) => void
   setPaneCwd: (id: string, cwd: string) => void
-  setTree: (tree: SplitNode) => void
+  setGrid: (grid: GridLayout) => void
 
   // Browser pane actions
   addBrowserWorkspace: (url: string, options?: BrowserPaneOptions) => void
@@ -118,7 +119,7 @@ function makeBrowserPane(url: string, options: BrowserPaneOptions = {}): Browser
   }
 }
 
-function destroyPane(pane: PaneInfo): void {
+function destroyPaneResource(pane: PaneInfo): void {
   if (pane.type === 'terminal') {
     destroyTerminal(pane.id)
   } else if (pane.type === 'browser') {
@@ -133,7 +134,7 @@ function makeWorkspace(name?: string, cwd?: string): { workspace: Workspace; pan
     workspace: {
       id,
       name: name || `Workspace ${id.split('-')[1]}`,
-      tree: leaf(pane.id),
+      grid: createGrid(pane.id),
       activePaneId: pane.id
     },
     pane
@@ -143,7 +144,44 @@ function makeWorkspace(name?: string, cwd?: string): { workspace: Workspace; pan
 let _persistTimer: ReturnType<typeof setTimeout> | null = null
 
 function isPaneInPinnedWorkspace(paneId: string, workspaces: Workspace[]): boolean {
-  return workspaces.some((w) => w.pinned && allPaneIds(w.tree).includes(paneId))
+  return workspaces.some((w) => w.pinned && allPaneIds(w.grid).includes(paneId))
+}
+
+/** Shared logic for closing a pane in any workspace */
+function closePaneInWs(
+  get: () => PaneStore,
+  set: (partial: Partial<PaneStore>) => void,
+  workspaceId: string,
+  paneId: string
+): void {
+  const { workspaces, panes } = get()
+  const ws = workspaces.find((w) => w.id === workspaceId)
+  if (!ws) return
+
+  const ids = allPaneIds(ws.grid)
+  if (ids.length <= 1) {
+    get().removeWorkspace(workspaceId)
+    return
+  }
+
+  const newGrid = removePane(ws.grid, paneId)
+  if (!newGrid) return
+
+  const pane = panes.get(paneId)
+  if (pane) destroyPaneResource(pane)
+
+  const newPanes = new Map(panes)
+  newPanes.delete(paneId)
+
+  const newActivePaneId = paneId === ws.activePaneId
+    ? adjacentPaneId(ws.grid, paneId, -1)
+    : ws.activePaneId
+
+  set({
+    workspaces: workspaces.map((w) => w.id === workspaceId ? { ...ws, grid: newGrid, activePaneId: newActivePaneId } : w),
+    panes: newPanes
+  })
+  if (ws.pinned) get().persistPinned()
 }
 
 const initial = makeWorkspace()
@@ -175,19 +213,17 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces.find((w) => w.id === id)
     if (!ws) return
 
-    // Destroy all panes in this workspace (type-aware cleanup)
-    const paneIds = allPaneIds(ws.tree)
+    const paneIds = allPaneIds(ws.grid)
     const newPanes = new Map(panes)
     for (const pid of paneIds) {
       const pane = panes.get(pid)
-      if (pane) destroyPane(pane)
+      if (pane) destroyPaneResource(pane)
       newPanes.delete(pid)
     }
 
     const remaining = workspaces.filter((w) => w.id !== id)
     const unpinnedRemaining = remaining.filter((w) => !w.pinned)
 
-    // If this was the last unpinned workspace, create a fresh one
     if (unpinnedRemaining.length === 0) {
       const { workspace: newWs, pane: newPane } = makeWorkspace()
       newPanes.set(newPane.id, newPane)
@@ -217,10 +253,19 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const sourceWs = workspaces.find((w) => w.id === sourceId)
     if (!targetWs || !sourceWs) return
 
-    const mergedTree = split(direction, targetWs.tree, sourceWs.tree, 0.5)
+    let mergedGrid: GridLayout
+    if (direction === 'horizontal') {
+      // Source columns appended to right
+      mergedGrid = mergeGrids(targetWs.grid, sourceWs.grid)
+    } else {
+      // Source panes added as rows in the last column of target
+      const lastColIdx = targetWs.grid.columns.length - 1
+      mergedGrid = mergeGridAsRows(targetWs.grid, sourceWs.grid, lastColIdx)
+    }
+
     const updatedTarget: Workspace = {
       ...targetWs,
-      tree: mergedTree
+      grid: mergedGrid
     }
 
     set({
@@ -262,25 +307,31 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   separateWorkspace: (workspaceId) => {
     const { workspaces } = get()
     const ws = workspaces.find((w) => w.id === workspaceId)
-    if (!ws || ws.tree.type !== 'split') return
+    if (!ws || ws.grid.columns.length <= 1) return
 
-    const firstTree = ws.tree.first
-    const secondTree = ws.tree.second
-
-    const firstPaneIds = allPaneIds(firstTree)
+    // First column stays in the original workspace
+    const firstGrid: GridLayout = { columns: [{ ...ws.grid.columns[0], width: 1 }] }
+    const firstPaneIds = allPaneIds(firstGrid)
     const updatedSource: Workspace = {
       ...ws,
-      tree: firstTree,
-      activePaneId: firstPaneIds[0]
+      grid: firstGrid,
+      activePaneId: firstPaneIds.includes(ws.activePaneId) ? ws.activePaneId : firstPaneIds[0]
     }
 
+    // Remaining columns become a new workspace
+    const restColumns = ws.grid.columns.slice(1)
+    const totalWidth = restColumns.reduce((sum, c) => sum + c.width, 0)
+    const restGrid: GridLayout = {
+      columns: restColumns.map((c) => ({ ...c, width: c.width / totalWidth }))
+    }
+    const restPaneIds = allPaneIds(restGrid)
+
     const newWsId = genWorkspaceId()
-    const secondPaneIds = allPaneIds(secondTree)
     const newWorkspace: Workspace = {
       id: newWsId,
       name: `Workspace ${newWsId.split('-')[1]}`,
-      tree: secondTree,
-      activePaneId: secondPaneIds[0],
+      grid: restGrid,
+      activePaneId: restPaneIds.includes(ws.activePaneId) ? ws.activePaneId : restPaneIds[0],
       pinned: ws.pinned
     }
 
@@ -297,40 +348,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   },
 
   closePaneInWorkspace: (workspaceId, paneId) => {
-    const { workspaces, panes } = get()
-    const ws = workspaces.find((w) => w.id === workspaceId)
-    if (!ws) return
-
-    const ids = allPaneIds(ws.tree)
-    if (ids.length <= 1) {
-      get().removeWorkspace(workspaceId)
-      return
-    }
-
-    const newTree = removeNode(ws.tree, paneId)
-    if (!newTree) return
-
-    const pane = panes.get(paneId)
-    if (pane) destroyPane(pane)
-
-    const newPanes = new Map(panes)
-    newPanes.delete(paneId)
-
-    const newActivePaneId = paneId === ws.activePaneId
-      ? adjacentPaneId(ws.tree, paneId, -1)
-      : ws.activePaneId
-
-    const updatedWs: Workspace = {
-      ...ws,
-      tree: newTree,
-      activePaneId: newActivePaneId
-    }
-
-    set({
-      workspaces: workspaces.map((w) => w.id === workspaceId ? updatedWs : w),
-      panes: newPanes
-    })
-    if (ws.pinned) get().persistPinned()
+    closePaneInWs(get, set, workspaceId, paneId)
   },
 
   splitActive: (direction) => {
@@ -342,54 +360,19 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const newPanes = new Map(panes)
     newPanes.set(newPane.id, newPane)
 
-    const updatedWs: Workspace = {
-      ...ws,
-      tree: splitNode(ws.tree, ws.activePaneId, direction, newPane.id),
-      activePaneId: newPane.id
-    }
+    const newGrid = direction === 'horizontal'
+      ? addColumn(ws.grid, newPane.id)
+      : addRowBelow(ws.grid, ws.activePaneId, newPane.id)
 
     set({
-      workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
+      workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? { ...ws, grid: newGrid, activePaneId: newPane.id } : w),
       panes: newPanes
     })
     if (ws.pinned) get().persistPinned()
   },
 
   closePane: (id) => {
-    const { workspaces, activeWorkspaceId, panes } = get()
-    const ws = workspaces.find((w) => w.id === activeWorkspaceId)
-    if (!ws) return
-
-    const ids = allPaneIds(ws.tree)
-    if (ids.length <= 1) {
-      get().removeWorkspace(activeWorkspaceId)
-      return
-    }
-
-    const newTree = removeNode(ws.tree, id)
-    if (!newTree) return
-
-    const pane = panes.get(id)
-    if (pane) destroyPane(pane)
-
-    const newPanes = new Map(panes)
-    newPanes.delete(id)
-
-    const newActivePaneId = id === ws.activePaneId
-      ? adjacentPaneId(ws.tree, id, -1)
-      : ws.activePaneId
-
-    const updatedWs: Workspace = {
-      ...ws,
-      tree: newTree,
-      activePaneId: newActivePaneId
-    }
-
-    set({
-      workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
-      panes: newPanes
-    })
-    if (ws.pinned) get().persistPinned()
+    closePaneInWs(get, set, get().activeWorkspaceId, id)
   },
 
   setActivePaneInWorkspace: (paneId) => {
@@ -408,7 +391,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const { workspaces, activeWorkspaceId } = get()
     const ws = workspaces.find((w) => w.id === activeWorkspaceId)
     if (!ws) return
-    const next = adjacentPaneId(ws.tree, ws.activePaneId, 1)
+    const next = adjacentPaneId(ws.grid, ws.activePaneId, 1)
     get().setActivePaneInWorkspace(next)
   },
 
@@ -416,7 +399,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const { workspaces, activeWorkspaceId } = get()
     const ws = workspaces.find((w) => w.id === activeWorkspaceId)
     if (!ws) return
-    const prev = adjacentPaneId(ws.tree, ws.activePaneId, -1)
+    const prev = adjacentPaneId(ws.grid, ws.activePaneId, -1)
     get().setActivePaneInWorkspace(prev)
   },
 
@@ -426,8 +409,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces[wsIdx]
     if (!ws) return
 
-    // Try navigating within the current workspace's split tree
-    const target = navigateDirection(ws.tree, ws.activePaneId, dir)
+    const target = navigateDirection(ws.grid, ws.activePaneId, dir)
     if (target) {
       get().setActivePaneInWorkspace(target)
       return
@@ -470,11 +452,11 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
   },
 
-  setTree: (tree) => {
+  setGrid: (grid) => {
     const { workspaces, activeWorkspaceId } = get()
     set({
       workspaces: workspaces.map((w) =>
-        w.id === activeWorkspaceId ? { ...w, tree } : w
+        w.id === activeWorkspaceId ? { ...w, grid } : w
       )
     })
     const ws = workspaces.find((w) => w.id === activeWorkspaceId)
@@ -488,7 +470,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const workspace: Workspace = {
       id,
       name: `Workspace ${id.split('-')[1]}`,
-      tree: leaf(pane.id),
+      grid: createGrid(pane.id),
       activePaneId: pane.id
     }
     const newPanes = new Map(panes)
@@ -509,14 +491,12 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const newPanes = new Map(panes)
     newPanes.set(newPane.id, newPane)
 
-    const updatedWs: Workspace = {
-      ...ws,
-      tree: splitNode(ws.tree, ws.activePaneId, direction, newPane.id),
-      activePaneId: newPane.id
-    }
+    const newGrid = direction === 'horizontal'
+      ? addColumn(ws.grid, newPane.id)
+      : addRowBelow(ws.grid, ws.activePaneId, newPane.id)
 
     set({
-      workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? updatedWs : w),
+      workspaces: workspaces.map((w) => w.id === activeWorkspaceId ? { ...ws, grid: newGrid, activePaneId: newPane.id } : w),
       panes: newPanes
     })
     if (ws.pinned) get().persistPinned()
@@ -567,11 +547,11 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   removeUndockedBrowserPane: (paneId) => {
     const { workspaces, activeWorkspaceId, panes } = get()
 
-    const wsIndex = workspaces.findIndex((w) => allPaneIds(w.tree).includes(paneId))
+    const wsIndex = workspaces.findIndex((w) => allPaneIds(w.grid).includes(paneId))
     if (wsIndex === -1) return
 
     const ws = workspaces[wsIndex]
-    const ids = allPaneIds(ws.tree)
+    const ids = allPaneIds(ws.grid)
     const newPanes = new Map(panes)
     newPanes.delete(paneId)
 
@@ -598,16 +578,16 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       return
     }
 
-    const newTree = removeNode(ws.tree, paneId)
-    if (!newTree) return
+    const newGrid = removePane(ws.grid, paneId)
+    if (!newGrid) return
 
     const newActivePaneId = paneId === ws.activePaneId
-      ? adjacentPaneId(ws.tree, paneId, -1)
+      ? adjacentPaneId(ws.grid, paneId, -1)
       : ws.activePaneId
 
     const updatedWs: Workspace = {
       ...ws,
-      tree: newTree,
+      grid: newGrid,
       activePaneId: newActivePaneId
     }
 
@@ -636,9 +616,8 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces.find((w) => w.id === id)
     if (!ws || !ws.pinned) return
 
-    // If dormant, wake it first
     if (ws.dormant) {
-      const paneIds = allPaneIds(ws.tree)
+      const paneIds = allPaneIds(ws.grid)
       const { panes } = get()
       for (const pid of paneIds) {
         const pane = panes.get(pid)
@@ -663,16 +642,14 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces.find((w) => w.id === id)
     if (!ws || !ws.pinned || ws.dormant) return
 
-    // Destroy live resources for each pane
-    const paneIds = allPaneIds(ws.tree)
+    const paneIds = allPaneIds(ws.grid)
     for (const pid of paneIds) {
       const pane = panes.get(pid)
-      if (pane) destroyPane(pane)
+      if (pane) destroyPaneResource(pane)
     }
 
     const updated = { ...ws, dormant: true }
 
-    // If this was the active workspace, switch to next available live one
     let newActive = activeWorkspaceId
     if (activeWorkspaceId === id) {
       const liveWs = workspaces.find((w) => w.id !== id && !w.dormant)
@@ -693,14 +670,13 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces.find((w) => w.id === id)
     if (!ws || !ws.dormant) return
 
-    const paneIds = allPaneIds(ws.tree)
+    const paneIds = allPaneIds(ws.grid)
     for (const pid of paneIds) {
       const pane = panes.get(pid)
       if (!pane) continue
       if (pane.type === 'terminal') {
         createTerminal(pid, (pane as TerminalPaneInfo).cwd || undefined)
       }
-      // Browser panes: BrowserPane component calls browser.create() on mount
     }
 
     set({
@@ -721,18 +697,22 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         idMap.set(sp.id, newId)
       }
 
-      // Remap IDs in tree
-      function remapTree(node: SplitNode): SplitNode {
-        if (node.type === 'leaf') {
-          return { type: 'leaf', paneId: idMap.get(node.paneId) || node.paneId }
+      // Remap IDs in grid
+      function remapGrid(grid: GridLayout): GridLayout {
+        return {
+          columns: grid.columns.map((col) => ({
+            ...col,
+            rows: col.rows.map((row) => ({
+              ...row,
+              paneId: idMap.get(row.paneId) || row.paneId
+            }))
+          }))
         }
-        return { ...node, first: remapTree(node.first), second: remapTree(node.second) }
       }
 
-      const tree = remapTree(entry.tree as SplitNode)
-      const activePaneId = idMap.get(entry.activePaneId) || allPaneIds(tree)[0]
+      const grid = remapGrid(entry.grid as GridLayout)
+      const activePaneId = idMap.get(entry.activePaneId) || allPaneIds(grid)[0]
 
-      // Create placeholder PaneInfo entries
       for (const sp of entry.panes) {
         const newId = idMap.get(sp.id)!
         if (sp.type === 'terminal') {
@@ -750,7 +730,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
         id: wsId,
         name: entry.name,
         color: entry.color,
-        tree,
+        grid,
         activePaneId,
         pinned: true,
         dormant: true
@@ -766,7 +746,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
   serializePinnedWorkspaces: () => {
     const { workspaces, panes } = get()
     return workspaces.filter((w) => w.pinned).map((ws) => {
-      const paneIds = allPaneIds(ws.tree)
+      const paneIds = allPaneIds(ws.grid)
       const serializedPanes: SerializedPane[] = paneIds.map((pid) => {
         const pane = panes.get(pid)
         if (!pane) return { type: 'terminal' as const, id: pid, title: 'shell' }
@@ -779,7 +759,7 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
       return {
         name: ws.name,
         color: ws.color,
-        tree: ws.tree,
+        grid: ws.grid,
         activePaneId: ws.activePaneId,
         panes: serializedPanes
       }

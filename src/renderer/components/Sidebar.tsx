@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePaneStore, Workspace, PaneInfo, BrowserPaneInfo } from '../store/paneStore'
-import { allPaneIds } from '../model/splitTree'
+import { allPaneIds } from '../model/gridLayout'
 
 function FaviconIcon({ pane, size = 12 }: { pane: PaneInfo; size?: number }) {
   const [error, setError] = useState(false)
@@ -344,7 +344,7 @@ export default function Sidebar() {
             >
               Color
             </button>
-            {ctxWs && ctxWs.tree.type === 'split' && (
+            {ctxWs && ctxWs.grid.columns.length > 1 && (
               <button
                 className="ctx-menu-item"
                 onClick={() => {
@@ -405,7 +405,7 @@ function WorkspaceRow({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu
 }: WorkspaceRowProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const paneIds = allPaneIds(workspace.tree)
+  const paneIds = allPaneIds(workspace.grid)
   const paneInfos = paneIds.map((id) => panes.get(id)).filter(Boolean) as PaneInfo[]
   const isSinglePane = paneInfos.length === 1
   const wsColor = workspace.color

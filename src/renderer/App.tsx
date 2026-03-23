@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import SplitView from './components/SplitView'
+import GridView from './components/GridView'
 import Sidebar from './components/Sidebar'
 import UnifiedPicker from './components/UnifiedPicker'
 import { usePaneStore, useActiveWorkspace, flushPersistPinned } from './store/paneStore'
 import { setTitleChangeCallback, setCwdChangeCallback, writeToTerminalPTY } from './model/terminalManager'
 import { findController } from './model/findController'
-import { NavDirection } from './model/splitTree'
+import { NavDirection } from './model/gridLayout'
 
 const ARROW_TO_DIR: Record<string, NavDirection> = {
   ArrowLeft: 'left',
@@ -361,7 +361,7 @@ export default function App() {
       <div id="workspace">
         {workspaces.filter((w) => !w.dormant).map((w) => (
           <div key={w.id} className={`ws-layer ${w.id === activeWorkspaceId ? 'active' : ''}`}>
-            <SplitView node={w.tree} workspaceId={w.id} />
+            <GridView grid={w.grid} workspaceId={w.id} />
           </div>
         ))}
       </div>
