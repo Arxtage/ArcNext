@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 
-interface StoredStoredDirEntry {
+interface StoredDirEntry {
   path: string
   visitCount: number
   lastVisit: number

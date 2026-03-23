@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react'
-import { usePaneStore, useActiveWorkspace } from '../store/paneStore'
+import { usePaneStore } from '../store/paneStore'
 import type { DirEntry, WebEntry } from '../../shared/types'
 import {
   ensureProtocol,
