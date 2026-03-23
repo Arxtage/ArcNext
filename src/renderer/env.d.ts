@@ -1,6 +1,7 @@
 import type {
   BrowserDockedPayload,
   BrowserUndockedPayload,
+  DirEntry,
   ExternalBrowserShellState,
   ExternalBrowserWindowInfo,
   PinnedWorkspaceEntry,
@@ -13,12 +14,10 @@ interface ArcNextAPI {
   }
   dirHistory: {
     visit(path: string): Promise<void>
-    query(): Promise<Array<{
-      path: string
-      visitCount: number
-      lastVisit: number
-      score: number
-    }>>
+    query(): Promise<DirEntry[]>
+  }
+  dirDiscovery: {
+    query(): Promise<DirEntry[]>
   }
   webHistory: {
     visit(url: string, title?: string, faviconUrl?: string): Promise<void>

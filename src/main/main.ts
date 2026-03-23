@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { setupPTY, killAllPTY } from './pty'
 import { showQuitDialog } from './quitDialog'
 import { setupDirHistory, flushDirHistorySync } from './dirHistory'
+import { setupDirDiscovery } from './dirDiscovery'
 import { setupWebHistory, flushWebHistorySync } from './webHistory'
 import { setupPinnedWorkspaces, flushPinnedWorkspacesSync } from './pinnedWorkspaces'
 import { setupBrowserViewManager, destroyAllBrowserViews, adoptView, releaseView } from './browserViewManager'
@@ -72,6 +73,7 @@ function createWindow(): void {
 
   setupPTY(mainWindow)
   setupDirHistory()
+  setupDirDiscovery()
   setupWebHistory()
   setupPinnedWorkspaces()
   setupBrowserViewManager(mainWindow)

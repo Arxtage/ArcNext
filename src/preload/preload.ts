@@ -12,6 +12,9 @@ const api = {
     visit: (path: string) => ipcRenderer.invoke('dirHistory:visit', path),
     query: () => ipcRenderer.invoke('dirHistory:query')
   },
+  dirDiscovery: {
+    query: () => ipcRenderer.invoke('dirDiscovery:query')
+  },
   webHistory: {
     visit: (url: string, title?: string, faviconUrl?: string) =>
       ipcRenderer.invoke('webHistory:visit', url, title, faviconUrl),

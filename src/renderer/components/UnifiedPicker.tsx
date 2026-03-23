@@ -67,9 +67,12 @@ export default function UnifiedPicker({ onClose }: Props) {
     inputRef.current?.focus()
     Promise.all([
       window.arcnext.dirHistory.query(),
+      window.arcnext.dirDiscovery.query(),
       window.arcnext.webHistory.query()
-    ]).then(([dirs, webs]) => {
-      setAllDirEntries(dirs)
+    ]).then(([visited, discovered, webs]) => {
+      const visitedPaths = new Set(visited.map((e) => e.path))
+      const newDiscovered = discovered.filter((e) => !visitedPaths.has(e.path))
+      setAllDirEntries([...visited, ...newDiscovered])
       setAllWebEntries(webs)
     })
   }, [])

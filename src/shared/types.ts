@@ -46,7 +46,7 @@ export interface SerializedPane {
 export interface PinnedWorkspaceEntry {
   name: string
   color?: string
-  tree: unknown
+  grid: unknown
   activePaneId: string
   panes: SerializedPane[]
 }
@@ -82,6 +82,7 @@ export interface IPCChannels {
   'pty:title': (paneId: string, title: string) => void
   'dirHistory:visit': (path: string) => void
   'dirHistory:query': () => Promise<DirEntry[]>
+  'dirDiscovery:query': () => Promise<DirEntry[]>
   'webHistory:visit': (url: string, title?: string, faviconUrl?: string) => void
   'webHistory:query': () => Promise<WebEntry[]>
   // Browser view lifecycle
