@@ -15,6 +15,7 @@ function PaneRenderer({ paneId, workspaceId }: { paneId: string; workspaceId: st
 }
 
 const DIVIDER_SIZE = 4
+const DIVIDER_HIT_PAD = 5 // extra px each side → 14px total hit target
 
 interface PaneBounds {
   paneId: string
@@ -143,9 +144,9 @@ function ColDivider({ info, containerRef, grid }: {
       className="split-divider horizontal"
       style={{
         position: 'absolute',
-        left: info.left,
+        left: info.left - DIVIDER_HIT_PAD,
         top: info.top,
-        width: info.width,
+        width: info.width + DIVIDER_HIT_PAD * 2,
         height: info.height,
       }}
       onMouseDown={onMouseDown}
@@ -202,9 +203,9 @@ function RowDivider({ info, containerRef, grid }: {
       style={{
         position: 'absolute',
         left: info.left,
-        top: info.top,
+        top: info.top - DIVIDER_HIT_PAD,
         width: info.width,
-        height: info.height,
+        height: info.height + DIVIDER_HIT_PAD * 2,
       }}
       onMouseDown={onMouseDown}
     />

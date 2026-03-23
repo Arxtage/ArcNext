@@ -125,17 +125,12 @@ body,
 .sidebar-resize-handle {
     position: absolute;
     top: 0;
-    right: -4px;
-    width: 9px;
+    right: -7px;
+    width: 14px;
     height: 100%;
     cursor: col-resize;
     z-index: 10;
     -webkit-app-region: no-drag;
-}
-
-.sidebar-resize-handle:hover,
-.sidebar-resize-handle:active {
-    background: #74c0fc44;
 }
 
 .sidebar-list {
@@ -630,13 +625,7 @@ body,
 
 .split-divider {
     background: transparent;
-    transition: background 0.15s;
     z-index: 1;
-}
-
-.split-divider:hover {
-    background: #74c0fc66;
-    border-radius: 3px;
 }
 
 .split-divider.horizontal {
