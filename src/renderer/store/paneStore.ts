@@ -309,40 +309,30 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     const ws = workspaces.find((w) => w.id === workspaceId)
     if (!ws || ws.grid.columns.length <= 1) return
 
-    // First column stays in the original workspace
-    const firstGrid: GridLayout = { columns: [{ ...ws.grid.columns[0], width: 1 }] }
-    const firstPaneIds = allPaneIds(firstGrid)
-    const updatedSource: Workspace = {
-      ...ws,
-      grid: firstGrid,
-      activePaneId: firstPaneIds.includes(ws.activePaneId) ? ws.activePaneId : firstPaneIds[0]
-    }
+    // Each column becomes its own workspace (first reuses original ID)
+    const separated: Workspace[] = ws.grid.columns.map((col, i) => {
+      const grid: GridLayout = { columns: [{ ...col, width: 1 }] }
+      const paneIds = allPaneIds(grid)
+      const id = i === 0 ? ws.id : genWorkspaceId()
+      return {
+        ...ws,
+        id,
+        name: i === 0 ? ws.name : `Workspace ${id.split('-')[1]}`,
+        grid,
+        activePaneId: paneIds.includes(ws.activePaneId) ? ws.activePaneId : paneIds[0]
+      }
+    })
 
-    // Remaining columns become a new workspace
-    const restColumns = ws.grid.columns.slice(1)
-    const totalWidth = restColumns.reduce((sum, c) => sum + c.width, 0)
-    const restGrid: GridLayout = {
-      columns: restColumns.map((c) => ({ ...c, width: c.width / totalWidth }))
-    }
-    const restPaneIds = allPaneIds(restGrid)
-
-    const newWsId = genWorkspaceId()
-    const newWorkspace: Workspace = {
-      id: newWsId,
-      name: `Workspace ${newWsId.split('-')[1]}`,
-      grid: restGrid,
-      activePaneId: restPaneIds.includes(ws.activePaneId) ? ws.activePaneId : restPaneIds[0],
-      pinned: ws.pinned
-    }
+    // Activate the workspace that contains the previously active pane
+    const activeWs = separated.find((w) => allPaneIds(w.grid).includes(ws.activePaneId)) ?? separated[0]
 
     const wsIndex = workspaces.findIndex((w) => w.id === workspaceId)
     const newWorkspaces = [...workspaces]
-    newWorkspaces[wsIndex] = updatedSource
-    newWorkspaces.splice(wsIndex + 1, 0, newWorkspace)
+    newWorkspaces.splice(wsIndex, 1, ...separated)
 
     set({
       workspaces: newWorkspaces,
-      activeWorkspaceId: workspaceId
+      activeWorkspaceId: activeWs.id
     })
     if (ws.pinned) get().persistPinned()
   },

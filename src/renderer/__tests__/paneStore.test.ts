@@ -448,21 +448,48 @@ describe('paneStore — mixed workspace operations', () => {
     expect(types).toContain('browser')
   })
 
-  it('separateWorkspace splits columns into separate workspaces', () => {
-    // Create a 2-column workspace
+  it('separateWorkspace splits all columns into separate workspaces', () => {
+    // Create a 3-column workspace
+    usePaneStore.getState().splitActive('horizontal')
     usePaneStore.getState().splitActive('horizontal')
 
     const { workspaces } = usePaneStore.getState()
     expect(workspaces).toHaveLength(1)
-    expect(workspaces[0].grid.columns.length).toBe(2)
+    expect(workspaces[0].grid.columns.length).toBe(3)
 
     usePaneStore.getState().separateWorkspace(workspaces[0].id)
     const separated = usePaneStore.getState().workspaces
-    expect(separated).toHaveLength(2)
+    expect(separated).toHaveLength(3)
 
     // Each should have 1 column
     expect(separated[0].grid.columns).toHaveLength(1)
     expect(separated[1].grid.columns).toHaveLength(1)
+    expect(separated[2].grid.columns).toHaveLength(1)
+  })
+
+  it('separateWorkspace activates the workspace containing the active pane', () => {
+    usePaneStore.getState().splitActive('horizontal')
+    usePaneStore.getState().splitActive('horizontal')
+
+    const { workspaces } = usePaneStore.getState()
+    const activePaneId = workspaces[0].activePaneId
+
+    usePaneStore.getState().separateWorkspace(workspaces[0].id)
+    const { activeWorkspaceId } = usePaneStore.getState()
+    const activeWs = usePaneStore.getState().workspaces.find(w => w.id === activeWorkspaceId)!
+    expect(allPaneIds(activeWs.grid)).toContain(activePaneId)
+  })
+
+  it('separateWorkspace inherits color and pinned state', () => {
+    usePaneStore.getState().splitActive('horizontal')
+
+    const ws = usePaneStore.getState().workspaces[0]
+    usePaneStore.getState().setWorkspaceColor(ws.id, '#ff0000')
+
+    usePaneStore.getState().separateWorkspace(ws.id)
+    const separated = usePaneStore.getState().workspaces
+    expect(separated).toHaveLength(2)
+    expect(separated[1].color).toBe('#ff0000')
   })
 })
 

@@ -352,7 +352,7 @@ export default function Sidebar() {
                   setContextMenu(null)
                 }}
               >
-                Separate
+                Separate All
               </button>
             )}
           </div>
