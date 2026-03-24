@@ -18,53 +18,25 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 
 ## Features
 
-<table width="100%">
-<tr>
-<td width="50%">
+### Workspaces
+Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.
+
 <video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-workspaces.mp4" autoplay loop muted playsinline controls></video>
-</td>
-<td width="50%">
-<h3>Workspaces</h3>
-<p>Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.</p>
-</td>
-</tr>
-</table>
 
-<table width="100%">
-<tr>
-<td width="50%">
-<h3>Split Panes</h3>
-<p>Terminals and browser views side by side in any layout.</p>
-</td>
-<td width="50%">
+### Split Panes
+Terminals and browser views side by side in any layout.
+
 <video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-split-panes.mp4" autoplay loop muted playsinline controls></video>
-</td>
-</tr>
-</table>
 
-<table width="100%">
-<tr>
-<td width="50%">
+### Integrated Browser
+Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.
+
 <video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-browser.mp4" autoplay loop muted playsinline controls></video>
-</td>
-<td width="50%">
-<h3>Integrated Browser</h3>
-<p>Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.</p>
-</td>
-</tr>
-</table>
 
-<table width="100%">
-<tr>
-<td width="50%">
-<h3>Smart Cmd+T</h3>
-<p>Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.</p>
-</td>
-<td width="50%">
+### Smart Cmd+T
+Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.
+
 <video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-cmdt.mp4" autoplay loop muted playsinline controls></video>
-</td>
-</tr>
-</table>
 
 ## Tech Stack
 
