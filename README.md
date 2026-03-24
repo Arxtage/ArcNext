@@ -21,22 +21,22 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 ### Workspaces
 Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.
 
-<video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-workspaces.mp4" autoplay loop muted playsinline controls></video>
+![Workspaces demo](assets/demo-workspaces.gif)
 
 ### Split Panes
 Terminals and browser views side by side in any layout.
 
-<video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-split-panes.mp4" autoplay loop muted playsinline controls></video>
+![Split Panes demo](assets/demo-split-panes.gif)
 
 ### Integrated Browser
 Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.
 
-<video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-browser.mp4" autoplay loop muted playsinline controls></video>
+![Integrated Browser demo](assets/demo-browser.gif)
 
 ### Smart Cmd+T
 Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.
 
-<video src="https://raw.githubusercontent.com/armantsaturian/ArcNext/main/assets/demo-cmdt.mp4" autoplay loop muted playsinline controls></video>
+![Smart Cmd+T demo](assets/demo-cmdt.gif)
 
 ## Tech Stack
 
