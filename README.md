@@ -18,53 +18,25 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 
 ## Features
 
-<table>
-<tr>
-<td width="50%">
-<video src="assets/demo-workspaces.mp4" autoplay loop muted playsinline></video>
-</td>
-<td width="50%">
-<h3>Workspaces</h3>
-<p>Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.</p>
-</td>
-</tr>
-</table>
+### Workspaces
+Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.
 
-<table>
-<tr>
-<td width="50%">
-<h3>Split Panes</h3>
-<p>Terminals and browser views side by side in any layout.</p>
-</td>
-<td width="50%">
-<video src="assets/demo-split-panes.mp4" autoplay loop muted playsinline></video>
-</td>
-</tr>
-</table>
+<video src="assets/demo-workspaces.mp4" autoplay loop muted playsinline width="600"></video>
 
-<table>
-<tr>
-<td width="50%">
-<video src="assets/demo-browser.mp4" autoplay loop muted playsinline></video>
-</td>
-<td width="50%">
-<h3>Integrated Browser</h3>
-<p>Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.</p>
-</td>
-</tr>
-</table>
+### Split Panes
+Terminals and browser views side by side in any layout.
 
-<table>
-<tr>
-<td width="50%">
-<h3>Smart Cmd+T</h3>
-<p>Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.</p>
-</td>
-<td width="50%">
-<video src="assets/demo-cmdt.mp4" autoplay loop muted playsinline></video>
-</td>
-</tr>
-</table>
+<video src="assets/demo-split-panes.mp4" autoplay loop muted playsinline width="600"></video>
+
+### Integrated Browser
+Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.
+
+<video src="assets/demo-browser.mp4" autoplay loop muted playsinline width="600"></video>
+
+### Smart Cmd+T
+Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.
+
+<video src="assets/demo-cmdt.mp4" autoplay loop muted playsinline width="600"></video>
 
 ## Tech Stack
 
