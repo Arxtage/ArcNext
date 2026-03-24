@@ -18,10 +18,53 @@ See the [original motivation](https://x.com/armantsaturian/status/20323926697631
 
 ## Features
 
-- **Workspaces** — Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.
-- **Split panes** — Terminals and browser views side by side in any layout.
-- **Integrated browser** — Dock any web page next to your terminals. Links from the terminal open in-app. Undock back to a standalone window anytime.
-- **Smart Cmd+T** — Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go. Empty Enter for a blank shell.
+<table>
+<tr>
+<td width="50%">
+<video src="assets/demo-workspaces.mp4" autoplay loop muted playsinline></video>
+</td>
+<td width="50%">
+<h3>Workspaces</h3>
+<p>Vertical sidebar with Arc-style tabs. Drag to merge, color-code, pin, sleep.</p>
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="50%">
+<h3>Split Panes</h3>
+<p>Terminals and browser views side by side in any layout.</p>
+</td>
+<td width="50%">
+<video src="assets/demo-split-panes.mp4" autoplay loop muted playsinline></video>
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="50%">
+<video src="assets/demo-browser.mp4" autoplay loop muted playsinline></video>
+</td>
+<td width="50%">
+<h3>Integrated Browser</h3>
+<p>Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.</p>
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="50%">
+<h3>Smart Cmd+T</h3>
+<p>Frecency-powered picker with ghost text autocomplete. Search your directory and web history, Tab to complete, Enter to go.</p>
+</td>
+<td width="50%">
+<video src="assets/demo-cmdt.mp4" autoplay loop muted playsinline></video>
+</td>
+</tr>
+</table>
 
 ## Tech Stack
 
