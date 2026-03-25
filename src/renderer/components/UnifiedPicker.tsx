@@ -8,6 +8,12 @@ import {
   compactUrl,
   looksLikeUrl
 } from '../../shared/urlUtils'
+import {
+  createInitialPickerSelectionState,
+  movePickerSelection,
+  selectPickerIndex,
+  syncPickerSelection
+} from '../model/pickerSelection'
 
 type PickerItemType = 'dir' | 'web' | 'web-open'
 
@@ -57,7 +63,7 @@ export default function UnifiedPicker({ onClose }: Props) {
   const [query, setQuery] = useState('')
   const [allDirEntries, setAllDirEntries] = useState<DirEntry[]>([])
   const [allWebEntries, setAllWebEntries] = useState<WebEntry[]>([])
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selection, setSelection] = useState(createInitialPickerSelectionState)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
   const addWorkspace = usePaneStore((s) => s.addWorkspace)
@@ -156,6 +162,9 @@ export default function UnifiedPicker({ onClose }: Props) {
   const directUrlOffset = sortedDirs.length
   const webOffset = directUrlOffset + directUrlItems.length
 
+  const itemKeys = useMemo(() => allItems.map((item) => item.key), [allItems])
+  const selectedIndex = selection.selectedIndex
+
   const ghostText = (() => {
     if (!query) return ''
     const item = allItems[selectedIndex]
@@ -163,7 +172,9 @@ export default function UnifiedPicker({ onClose }: Props) {
     return computeGhostText(item, query)
   })()
 
-  useEffect(() => { setSelectedIndex(0) }, [query])
+  useEffect(() => {
+    setSelection((prev) => syncPickerSelection(prev, itemKeys))
+  }, [itemKeys])
 
   useEffect(() => {
     const container = resultsRef.current
@@ -224,11 +235,11 @@ export default function UnifiedPicker({ onClose }: Props) {
       }
       case 'ArrowDown':
         e.preventDefault()
-        setSelectedIndex((i) => Math.min(i + 1, allItems.length - 1))
+        setSelection((prev) => movePickerSelection(prev, itemKeys, 1))
         break
       case 'ArrowUp':
         e.preventDefault()
-        setSelectedIndex((i) => Math.max(i - 1, 0))
+        setSelection((prev) => movePickerSelection(prev, itemKeys, -1))
         break
       case 'Enter':
         e.preventDefault()
@@ -239,7 +250,7 @@ export default function UnifiedPicker({ onClose }: Props) {
         }
         break
     }
-  }, [allItems, selectedIndex, handleSelect, handleNewBlankWorkspace, onClose, acceptGhost, ghostText])
+  }, [allItems, selectedIndex, handleSelect, handleNewBlankWorkspace, onClose, acceptGhost, ghostText, itemKeys])
 
   return (
     <div className="picker-overlay" onClick={onClose}>
@@ -270,7 +281,7 @@ export default function UnifiedPicker({ onClose }: Props) {
                     data-selectable
                     className={`picker-item${idx === selectedIndex ? ' selected' : ''}`}
                     onClick={() => handleSelect(item)}
-                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onMouseMove={() => setSelection((prev) => selectPickerIndex(prev, itemKeys, idx))}
                   >
                     <span className="picker-item-name">{highlightSubstring(item.displayName, query)}</span>
                     <span className="picker-item-path">{highlightSubstring(item.dirPath!, query)}</span>
@@ -293,7 +304,7 @@ export default function UnifiedPicker({ onClose }: Props) {
                     data-selectable
                     className={`picker-item${idx === selectedIndex ? ' selected' : ''}`}
                     onClick={() => handleSelect(item)}
-                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onMouseMove={() => setSelection((prev) => selectPickerIndex(prev, itemKeys, idx))}
                   >
                     <div className="picker-item-web-row">
                       <span className="picker-item-favicon-icon">{'\u{1F310}'}</span>
@@ -311,7 +322,7 @@ export default function UnifiedPicker({ onClose }: Props) {
                     data-selectable
                     className={`picker-item picker-item-compact${idx === selectedIndex ? ' selected' : ''}`}
                     onClick={() => handleSelect(item)}
-                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onMouseMove={() => setSelection((prev) => selectPickerIndex(prev, itemKeys, idx))}
                   >
                     <div className="picker-item-web-row">
                       {item.faviconUrl ? (
