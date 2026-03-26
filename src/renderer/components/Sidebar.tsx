@@ -594,7 +594,7 @@ function computeGroupKey(paneInfos: PaneInfo[]): string {
 }
 
 function groupLabel(key: string): string {
-  if (key === 'browsers') return 'Browsers'
+  if (key === 'browsers') return 'WEB'
   if (key === 'other') return 'Other'
   if (key.startsWith('cwd:')) return key.slice(4)
   return key
