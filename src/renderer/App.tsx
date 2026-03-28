@@ -3,7 +3,7 @@ import GridView from './components/GridView'
 import Sidebar from './components/Sidebar'
 import UnifiedPicker from './components/UnifiedPicker'
 import { usePaneStore, useActiveWorkspace, flushPersistPinned } from './store/paneStore'
-import { setTitleChangeCallback, setCwdChangeCallback, setCommandChangeCallback, setPtyDataCallback, writeToTerminalPTY } from './model/terminalManager'
+import { setTitleChangeCallback, setCwdChangeCallback, setCommandChangeCallback, setPtyDataCallback, setUserInputCallback, writeToTerminalPTY } from './model/terminalManager'
 import {
   setAgentStateCallback, onCommandStart, onCommandEnd,
   onTitleChange as agentOnTitleChange, onPtyData as agentOnPtyData, startIdleChecker
@@ -100,18 +100,29 @@ export default function App() {
     })
   }, [setPaneCwd])
 
-  // Wire shell hooks (OSC 7771) into agent detector
+  // Wire shell hooks (OSC 7771) into agent detector + pane command tracking
   const setAgentState = usePaneStore((s) => s.setAgentState)
+  const setPaneCommand = usePaneStore((s) => s.setPaneCommand)
+  const setPaneUserMessage = usePaneStore((s) => s.setPaneUserMessage)
   useEffect(() => {
     setAgentStateCallback((paneId, state) => setAgentState(paneId, state))
     setCommandChangeCallback((paneId, command) => {
-      if (command) onCommandStart(paneId, command)
-      else onCommandEnd(paneId)
+      if (command) {
+        onCommandStart(paneId, command)
+        setPaneCommand(paneId, command)
+      } else {
+        onCommandEnd(paneId)
+        setPaneCommand(paneId, null)
+      }
+    })
+    setUserInputCallback((paneId, message) => {
+      const agentState = usePaneStore.getState().agentStates.get(paneId)
+      if (agentState) setPaneUserMessage(paneId, message)
     })
     setPtyDataCallback((paneId) => agentOnPtyData(paneId))
     const stopIdleChecker = startIdleChecker()
     return () => { stopIdleChecker() }
-  }, [setAgentState])
+  }, [setAgentState, setPaneCommand, setPaneUserMessage])
 
   // Wire browser view events from main process into the store
   useEffect(() => {

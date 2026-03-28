@@ -76,6 +76,8 @@ interface PaneStore {
   navigateDir: (dir: NavDirection) => void
   setPaneTitle: (id: string, title: string) => void
   setPaneCwd: (id: string, cwd: string) => void
+  setPaneCommand: (id: string, command: string | null) => void
+  setPaneUserMessage: (id: string, message: string) => void
   setGrid: (grid: GridLayout) => void
 
   // Browser pane actions
@@ -462,6 +464,28 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     newPanes.set(id, { ...pane, cwd })
     set({ panes: newPanes })
     if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
+  },
+
+  setPaneCommand: (id, command) => {
+    const { panes } = get()
+    const pane = panes.get(id)
+    if (!pane || pane.type !== 'terminal') return
+    const newPanes = new Map(panes)
+    if (command) {
+      newPanes.set(id, { ...pane, command, userMessage: undefined })
+    } else {
+      newPanes.set(id, { ...pane, command: undefined, userMessage: undefined })
+    }
+    set({ panes: newPanes })
+  },
+
+  setPaneUserMessage: (id, message) => {
+    const { panes } = get()
+    const pane = panes.get(id)
+    if (!pane || pane.type !== 'terminal') return
+    const newPanes = new Map(panes)
+    newPanes.set(id, { ...pane, userMessage: message })
+    set({ panes: newPanes })
   },
 
   setGrid: (grid) => {

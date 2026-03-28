@@ -232,6 +232,7 @@ export default function Sidebar() {
               isDragging={ws.id === dragSourceId}
               dropPosition={dragOverState?.targetId === ws.id && ws.id !== dragSourceId ? dragOverState.position : null}
               agentState={wsAgentState}
+              grouped={sidebarGrouped}
               onSelect={() => {
                 if (ws.dormant) wakeWorkspace(ws.id)
                 switchWorkspace(ws.id)
@@ -417,6 +418,7 @@ interface WorkspaceRowProps {
   dropPosition: 'before' | 'after' | 'on' | null
   agentState: AgentState | null
   isEditing: boolean
+  grouped: boolean
   onSelect: () => void
   onSleep: () => void
   onRemove: () => void
@@ -433,7 +435,7 @@ interface WorkspaceRowProps {
 }
 
 function WorkspaceRow({
-  workspace, panes, collapsed, isActive, isDragging, dropPosition, agentState, isEditing,
+  workspace, panes, collapsed, isActive, isDragging, dropPosition, agentState, isEditing, grouped,
   onSelect, onSleep, onRemove, onClosePane, onDoubleClick, onRename, onCancelRename,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu
 }: WorkspaceRowProps) {
@@ -445,7 +447,7 @@ function WorkspaceRow({
 
   const hasCustomName = workspace.name && !workspace.name.startsWith('Workspace ')
   const firstPane = paneInfos[0]
-  const defaultTitle = firstPane ? paneDisplayTitle(firstPane) || 'shell' : 'shell'
+  const defaultTitle = firstPane ? paneDisplayTitle(firstPane, grouped) || 'shell' : 'shell'
   const displayTitle = hasCustomName ? workspace.name : defaultTitle
   const isBrowserWorkspace = firstPane?.type === 'browser'
   const initial = (displayTitle === 'shell' ? 'S' : displayTitle.split('/').pop() || 'S').charAt(0).toUpperCase()
@@ -569,16 +571,48 @@ function WorkspaceRow({
   )
 }
 
-function paneDisplayTitle(pane: PaneInfo): string {
+const FILLER_WORDS = new Set([
+  'the', 'a', 'an', 'i', 'you', 'we', 'my', 'our', 'it', 'its',
+  'please', 'can', 'could', 'would', 'should',
+  'that', 'this', 'is', 'are', 'was', 'be', 'to', 'of',
+])
+
+function stripAndTruncate(text: string, maxWords = 3): string {
+  const words = text
+    .toLowerCase()
+    .replace(/["""''`]/g, '')
+    .split(/\s+/)
+    .filter((w) => w && !FILLER_WORDS.has(w))
+  if (words.length === 0) {
+    // fallback: take raw first N words without stripping
+    const raw = text.trim().split(/\s+/).slice(0, maxWords).join(' ')
+    return raw.toLowerCase()
+  }
+  return words.slice(0, maxWords).join(' ')
+}
+
+function paneDisplayTitle(pane: PaneInfo, grouped = false): string {
   if (pane.type === 'browser') {
     return pane.title || pane.url
   }
-  // Prefer CWD basename for terminals (e.g. "arcnext" instead of "armantsaturian@MacBook-Pro")
-  if (pane.cwd) {
-    const name = cwdBasename(pane.cwd)
-    if (name) return name
+  const project = pane.cwd ? cwdBasename(pane.cwd) : ''
+
+  // Agent session with user message
+  if (pane.userMessage) {
+    const snippet = stripAndTruncate(pane.userMessage)
+    if (grouped) return snippet
+    return project ? `${project} | ${snippet}` : snippet
   }
-  return pane.title || 'shell'
+
+  // Active command (non-agent)
+  if (pane.command) {
+    const cmdSnippet = pane.command.toLowerCase().slice(0, 30).trim()
+    if (grouped) return cmdSnippet
+    return project ? `${project} | ${cmdSnippet}` : cmdSnippet
+  }
+
+  // Default: just project name
+  return project || pane.title || 'shell'
 }
 
 function formatTitle(title: string): string {
@@ -586,5 +620,5 @@ function formatTitle(title: string): string {
   const looksLikePath = title.startsWith('/') || title.includes('://')
   const parts = looksLikePath ? title.split('/') : [title]
   const name = parts[parts.length - 1] || title
-  return name.length > 18 ? name.slice(0, 16) + '...' : name
+  return name.length > 24 ? name.slice(0, 22) + '..' : name
 }

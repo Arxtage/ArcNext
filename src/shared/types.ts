@@ -3,6 +3,8 @@ export interface TerminalPaneInfo {
   id: string
   title: string
   cwd: string
+  command?: string
+  userMessage?: string
 }
 
 export interface BrowserPaneInfo {
@@ -73,7 +75,7 @@ export interface ExternalBrowserShellState {
   title: string
 }
 
-export type AgentType = 'claude' | 'codex'
+export type AgentType = 'claude' | 'codex' | 'opencode'
 export type AgentStatus = 'thinking' | 'idle'
 
 export interface AgentState {

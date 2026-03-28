@@ -4,7 +4,8 @@ type AgentStateCallback = (paneId: string, state: AgentState | null) => void
 
 const KNOWN_AGENTS: Record<string, AgentType> = {
   claude: 'claude',
-  codex: 'codex'
+  codex: 'codex',
+  opencode: 'opencode'
 }
 
 // Claude Code title prefixes for state detection
@@ -60,7 +61,8 @@ function emit(paneId: string): void {
 /** Shell hook: a command started running (from preexec via OSC 7771) */
 export function onCommandStart(paneId: string, command: string): void {
   const pane = getPane(paneId)
-  const agent = KNOWN_AGENTS[command.toLowerCase()] ?? null
+  const firstWord = command.split(/\s+/)[0]?.toLowerCase() ?? ''
+  const agent = KNOWN_AGENTS[firstWord] ?? null
   pane.agent = agent
   pane.lastOutputTime = agent ? Date.now() : 0
   emit(paneId)

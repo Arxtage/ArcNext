@@ -24,7 +24,7 @@ if [[ -n "$ARCNEXT_SHELL_INTEGRATION" ]]; then
   # OSC 7771 — command lifecycle tracking (for AI agent detection)
   # preexec: fires when user hits Enter, before the command runs
   __arcnext_preexec() {
-    local cmd="${1%% *}"
+    local cmd="${1:0:80}"
     printf '\e]7771;cmd:%s\a' "${cmd}"
   }
   # precmd: fires when the command finishes and the prompt is about to display

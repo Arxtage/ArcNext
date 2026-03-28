@@ -11,10 +11,12 @@ type TitleCallback = (paneId: string, title: string) => void
 type CwdCallback = (paneId: string, cwd: string) => void
 type CommandCallback = (paneId: string, command: string | null) => void
 type PtyDataCallback = (paneId: string) => void
+type UserInputCallback = (paneId: string, message: string) => void
 let onTitleChange: TitleCallback | null = null
 let onCwdChange: CwdCallback | null = null
 let onCommandChange: CommandCallback | null = null
 let onPtyData: PtyDataCallback | null = null
+let onUserInput: UserInputCallback | null = null
 
 export function setTitleChangeCallback(cb: TitleCallback): void {
   onTitleChange = cb
@@ -30,6 +32,36 @@ export function setCommandChangeCallback(cb: CommandCallback): void {
 
 export function setPtyDataCallback(cb: PtyDataCallback): void {
   onPtyData = cb
+}
+
+export function setUserInputCallback(cb: UserInputCallback): void {
+  onUserInput = cb
+}
+
+// Per-pane keystroke buffers for capturing user input
+const inputBuffers = new Map<string, string>()
+
+function bufferUserInput(paneId: string, data: string): void {
+  let buf = inputBuffers.get(paneId) ?? ''
+  for (const ch of data) {
+    if (ch === '\r' || ch === '\n') {
+      const trimmed = buf.trim()
+      if (trimmed && onUserInput) onUserInput(paneId, trimmed)
+      buf = ''
+    } else if (ch === '\x7f' || ch === '\b') {
+      buf = buf.slice(0, -1)
+    } else if (ch === '\x03' || ch === '\x15') {
+      // Ctrl+C or Ctrl+U — clear buffer
+      buf = ''
+    } else if (ch === '\x1b') {
+      // Start of escape sequence — skip rest of this data chunk
+      inputBuffers.set(paneId, buf)
+      return
+    } else if (ch.charCodeAt(0) >= 32) {
+      buf += ch
+    }
+  }
+  inputBuffers.set(paneId, buf)
 }
 
 interface ManagedTerminal {
@@ -123,6 +155,7 @@ export function createTerminal(paneId: string, cwd?: string, scrollback?: string
 
   term.onData((data) => {
     window.arcnext.pty.write(paneId, data)
+    bufferUserInput(paneId, data)
   })
 
   const removeDataListener = window.arcnext.pty.onData((id, data) => {
@@ -268,6 +301,7 @@ export function destroyTerminal(paneId: string): void {
   if (!managed) return
   managed.removeDataListener()
   managed.removeExitListener()
+  inputBuffers.delete(paneId)
   // Clean up host div from parking to prevent DOM leaks
   const host = managed.term.element?.parentElement
   if (host) host.remove()
