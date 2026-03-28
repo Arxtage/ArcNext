@@ -1,6 +1,27 @@
-import { WebContentsView, session, Menu, MenuItem, clipboard } from 'electron'
+import { app, WebContentsView, session, Menu, MenuItem, clipboard } from 'electron'
 
 export const BROWSER_PARTITION = 'persist:browser'
+
+/**
+ * Build a User-Agent string that matches a real Chrome browser.
+ * Strips Electron and app name tokens that trip Google's bot detection.
+ */
+function getChromeUserAgent(): string {
+  const defaultUA = app.userAgentFallback
+  return defaultUA
+    .replace(/\s*Electron\/[\w.-]+/, '')
+    .replace(new RegExp(`\\s*${app.getName()}/[\\w.-]+`), '')
+}
+
+let _browserSession: Electron.Session | null = null
+
+function getBrowserSession(): Electron.Session {
+  if (!_browserSession) {
+    _browserSession = session.fromPartition(BROWSER_PARTITION)
+    _browserSession.setUserAgent(getChromeUserAgent())
+  }
+  return _browserSession
+}
 
 interface BrowserWebContentsCallbacks {
   onTitle?: (title: string) => void
@@ -21,7 +42,7 @@ export function createBrowserView(): WebContentsView {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      session: session.fromPartition(BROWSER_PARTITION)
+      session: getBrowserSession()
     }
   })
 }

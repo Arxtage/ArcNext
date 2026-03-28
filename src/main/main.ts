@@ -22,6 +22,9 @@ import {
 } from './externalBrowserWindows'
 import type { BrowserDockedPayload } from '../shared/types'
 
+// Prevent sites from detecting Electron as an automated browser
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
 
