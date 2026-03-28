@@ -15,7 +15,7 @@ import {
   syncPickerSelection
 } from '../model/pickerSelection'
 
-type PickerItemType = 'dir' | 'web' | 'web-open'
+type PickerItemType = 'dir' | 'web'
 
 interface PickerItem {
   type: PickerItemType
@@ -141,7 +141,7 @@ export default function UnifiedPicker({ onClose }: Props) {
     const bareTarget = bareUrl(targetUrl)
 
     items.push({
-      type: 'web-open',
+      type: 'web',
       key: `open:${targetUrl}`,
       label: bareTarget,
       displayName: `Open ${query}`,
@@ -152,15 +152,29 @@ export default function UnifiedPicker({ onClose }: Props) {
     return items
   }, [query])
 
+  const googleSearchItem = useMemo((): PickerItem[] => {
+    if (!query) return []
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`
+    return [{
+      type: 'web',
+      key: `search:${query}`,
+      label: query,
+      displayName: `Search Google for "${query}"`,
+      score: -Infinity,
+      url: searchUrl
+    }]
+  }, [query])
+
   const allItems = useMemo(
-    () => [...sortedDirs, ...directUrlItems, ...sortedWebs],
-    [sortedDirs, directUrlItems, sortedWebs]
+    () => [...sortedDirs, ...directUrlItems, ...sortedWebs, ...googleSearchItem],
+    [sortedDirs, directUrlItems, sortedWebs, googleSearchItem]
   )
 
   // Section offsets for flat indexing
   const dirOffset = 0
   const directUrlOffset = sortedDirs.length
   const webOffset = directUrlOffset + directUrlItems.length
+  const searchOffset = webOffset + sortedWebs.length
 
   const itemKeys = useMemo(() => allItems.map((item) => item.key), [allItems])
   const selectedIndex = selection.selectedIndex
@@ -193,7 +207,6 @@ export default function UnifiedPicker({ onClose }: Props) {
         }
         break
       case 'web':
-      case 'web-open':
         if (item.url) {
           addBrowserWorkspace(ensureProtocol(item.url))
           onClose()
@@ -344,9 +357,31 @@ export default function UnifiedPicker({ onClose }: Props) {
             </>
           )}
 
-          {allItems.length === 0 && query && (
-            <div className="picker-empty">No matching results</div>
+          {googleSearchItem.length > 0 && (
+            <>
+              {(sortedDirs.length > 0 || directUrlItems.length > 0 || sortedWebs.length > 0) && (
+                <div className="picker-section-divider" />
+              )}
+              {googleSearchItem.map((item, i) => {
+                const idx = searchOffset + i
+                return (
+                  <div
+                    key={item.key}
+                    data-selectable
+                    className={`picker-item${idx === selectedIndex ? ' selected' : ''}`}
+                    onClick={() => handleSelect(item)}
+                    onMouseMove={() => setSelection((prev) => selectPickerIndex(prev, itemKeys, idx))}
+                  >
+                    <div className="picker-item-web-row">
+                      <span className="picker-item-favicon-icon">{'\u{1F50D}'}</span>
+                      <span className="picker-item-name">{item.displayName}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
           )}
+
           {allItems.length === 0 && !query && (
             <div className="picker-empty">No history yet — press Enter for a blank terminal</div>
           )}
