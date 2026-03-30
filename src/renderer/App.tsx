@@ -53,6 +53,7 @@ export default function App() {
   const setOverlay = usePaneStore((s) => s.setOverlay)
   const wakeWorkspace = usePaneStore((s) => s.wakeWorkspace)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const liveActiveWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId && !workspace.dormant) ?? null
 
   const openPicker = () => { window.arcnext.browser.focusRenderer(); setPickerOpen(true); setOverlay('picker', true) }
   const closePicker = () => { setPickerOpen(false); setOverlay('picker', false) }
@@ -395,11 +396,11 @@ export default function App() {
     <div id="app">
       <Sidebar />
       <div id="workspace">
-        {workspaces.filter((w) => !w.dormant).map((w) => (
-          <div key={w.id} className={`ws-layer ${w.id === activeWorkspaceId ? 'active' : ''}`}>
-            <GridView grid={w.grid} workspaceId={w.id} />
+        {liveActiveWorkspace && (
+          <div key={liveActiveWorkspace.id} className="ws-layer active">
+            <GridView grid={liveActiveWorkspace.grid} workspaceId={liveActiveWorkspace.id} />
           </div>
-        ))}
+        )}
       </div>
       {pickerOpen && <UnifiedPicker onClose={closePicker} />}
     </div>
