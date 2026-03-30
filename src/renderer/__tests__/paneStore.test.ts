@@ -8,12 +8,11 @@ vi.mock('../model/terminalManager', () => ({
   serializeTerminal: vi.fn(() => null)
 }))
 vi.mock('../model/browserManager', () => ({
-  destroyBrowserView: vi.fn(),
-  undockBrowserView: vi.fn()
+  destroyBrowserView: vi.fn()
 }))
 
 import { createTerminal, destroyTerminal } from '../model/terminalManager'
-import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
+import { destroyBrowserView } from '../model/browserManager'
 import { usePaneStore } from '../store/paneStore'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo } from '../../shared/types'
 import { allPaneIds } from '../model/gridLayout'
@@ -239,6 +238,40 @@ describe('paneStore — browser pane actions', () => {
     expect(pane.title).toBe('Example Domain')
     expect(pane.isLoading).toBe(false)
   })
+
+  it('addBrowserWorkspace inserts after the active workspace by default', () => {
+    const firstWorkspaceId = usePaneStore.getState().activeWorkspaceId
+    usePaneStore.getState().addWorkspace('/tmp/project-a')
+    const secondWorkspaceId = usePaneStore.getState().activeWorkspaceId
+
+    usePaneStore.getState().switchWorkspace(firstWorkspaceId)
+    usePaneStore.getState().addBrowserWorkspace('https://example.com')
+
+    const ids = usePaneStore.getState().workspaces.map((ws) => ws.id)
+    expect(ids.indexOf(firstWorkspaceId)).toBe(0)
+    expect(ids.indexOf(secondWorkspaceId)).toBe(2)
+    expect(usePaneStore.getState().activeWorkspaceId).toBe(ids[1])
+  })
+
+  it('addBrowserWorkspace can insert after a specific pane without stealing focus', () => {
+    usePaneStore.getState().addWorkspace('/tmp/project-a')
+    const sourceWs = usePaneStore.getState().workspaces[0]
+    const activeBefore = usePaneStore.getState().activeWorkspaceId
+
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', {
+      paneId: 'pane-background',
+      afterPaneId: sourceWs.activePaneId,
+      activate: false
+    })
+
+    const state = usePaneStore.getState()
+    const ids = state.workspaces.map((ws) => ws.id)
+    const insertedIndex = ids.findIndex((id) => id !== sourceWs.id && id !== activeBefore)
+
+    expect(insertedIndex).toBe(1)
+    expect(state.activeWorkspaceId).toBe(activeBefore)
+    expect(state.workspaces[insertedIndex].activePaneId).toBe('pane-background')
+  })
 })
 
 describe('paneStore — type-aware cleanup', () => {
@@ -328,76 +361,6 @@ describe('paneStore — setPaneTitle preserves type discriminator', () => {
     expect(pane.url).toBe('https://example.com')
     expect(pane.canGoBack).toBe(true)
     expect(pane.canGoForward).toBe(false)
-  })
-})
-
-describe('paneStore — dock/undock lifecycle', () => {
-  beforeEach(resetStore)
-
-  it('undockBrowserPane requests main-process undock but does not mutate store immediately', () => {
-    usePaneStore.getState().addBrowserWorkspace('https://example.com', {
-      paneId: 'browser-1',
-      title: 'Example Domain',
-      isLoading: false
-    })
-
-    ;(undockBrowserView as ReturnType<typeof vi.fn>).mockResolvedValue(true)
-
-    const before = usePaneStore.getState()
-    usePaneStore.getState().undockBrowserPane('browser-1')
-    const after = usePaneStore.getState()
-
-    expect(undockBrowserView).toHaveBeenCalledWith('browser-1')
-    expect(after.workspaces).toEqual(before.workspaces)
-    expect(after.panes).toEqual(before.panes)
-  })
-
-  it('removeUndockedBrowserPane removes a browser pane from a split workspace', () => {
-    usePaneStore.getState().splitActiveBrowser('horizontal', 'https://example.com')
-    const ws = usePaneStore.getState().workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
-    const browserPaneId = ws.activePaneId
-
-    usePaneStore.getState().removeUndockedBrowserPane(browserPaneId)
-
-    const updatedWs = usePaneStore.getState().workspaces.find(w => w.id === usePaneStore.getState().activeWorkspaceId)!
-    const ids = allPaneIds(updatedWs.grid)
-    expect(ids).toHaveLength(1)
-    expect(usePaneStore.getState().panes.has(browserPaneId)).toBe(false)
-    expect(usePaneStore.getState().panes.get(ids[0])!.type).toBe('terminal')
-  })
-
-  it('removeUndockedBrowserPane creates a replacement terminal workspace when the last workspace is undocked', () => {
-    usePaneStore.setState({
-      workspaces: [{
-        id: 'ws-browser',
-        name: 'Workspace 1',
-        grid: { columns: [{ width: 1, rows: [{ height: 1, paneId: 'browser-1' }] }] },
-        activePaneId: 'browser-1'
-      }],
-      activeWorkspaceId: 'ws-browser',
-      panes: new Map([[
-        'browser-1',
-        {
-          type: 'browser',
-          id: 'browser-1',
-          title: 'Example Domain',
-          url: 'https://example.com',
-          canGoBack: false,
-          canGoForward: false,
-          isLoading: false
-        }
-      ]])
-    })
-
-    vi.clearAllMocks()
-    usePaneStore.getState().removeUndockedBrowserPane('browser-1')
-
-    const state = usePaneStore.getState()
-    expect(createTerminal).toHaveBeenCalledTimes(1)
-    expect(state.workspaces).toHaveLength(1)
-    expect(state.activeWorkspaceId).toBe(state.workspaces[0].id)
-    expect(state.panes.has('browser-1')).toBe(false)
-    expect(state.panes.get(state.workspaces[0].activePaneId)?.type).toBe('terminal')
   })
 })
 

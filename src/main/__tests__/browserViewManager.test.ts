@@ -24,6 +24,8 @@ const mockState = vi.hoisted(() => {
   }> = []
   const cleanupByView = new WeakMap<object, ReturnType<typeof vi.fn>>()
   const callbacksByView = new WeakMap<object, Record<string, (...args: unknown[]) => void>>()
+  const openExternal = vi.fn()
+  const createBrowserPopupWindow = vi.fn(() => ({ id: 'popup-web-contents' }))
   let nextViewId = 1
 
   const makeView = () => {
@@ -63,12 +65,17 @@ const mockState = vi.hoisted(() => {
     createdViews,
     cleanupByView,
     callbacksByView,
+    openExternal,
+    createBrowserPopupWindow,
     makeView,
     reset
   }
 })
 
 vi.mock('electron', () => ({
+  shell: {
+    openExternal: mockState.openExternal
+  },
   ipcMain: {
     on: vi.fn((channel: string, handler: (...args: unknown[]) => void) => {
       mockState.ipcHandlers.set(channel, handler)
@@ -87,8 +94,8 @@ vi.mock('../browserViewUtils', () => ({
   })
 }))
 
-vi.mock('../externalBrowserWindows', () => ({
-  createExternalBrowserWindow: vi.fn()
+vi.mock('../browserPopups', () => ({
+  createBrowserPopupWindow: mockState.createBrowserPopupWindow
 }))
 
 function createMainWindow() {
@@ -146,7 +153,7 @@ describe('browserViewManager', () => {
 
     expect(mockState.createdViews).toHaveLength(1)
     const view = mockState.createdViews[0]
-    expect(view.webContents.loadURL).toHaveBeenCalledWith('https://example.com')
+    expect(view.webContents.loadURL).toHaveBeenCalledWith('https://example.com', undefined)
     expect(view.setBounds).toHaveBeenCalledWith({ x: 12, y: 46, width: 800, height: 601 })
     expect(mainWindow.contentView.addChildView).toHaveBeenCalledWith(view)
   })
@@ -173,7 +180,7 @@ describe('browserViewManager', () => {
 
     expect(mockState.createdViews).toHaveLength(3)
     const recreatedView = mockState.createdViews[2]
-    expect(recreatedView.webContents.loadURL).toHaveBeenCalledWith('https://one.example/after-nav')
+    expect(recreatedView.webContents.loadURL).toHaveBeenCalledWith('https://one.example/after-nav', undefined)
     expect(mainWindow.contentView.addChildView).toHaveBeenCalledWith(recreatedView)
   })
 
@@ -219,5 +226,105 @@ describe('browserViewManager', () => {
 
     expect(mockState.cleanupByView.get(recreatedView)).toHaveBeenCalledTimes(1)
     expect(recreatedView.webContents.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes background-tab opens into background workspaces after the source pane', () => {
+    emitIpc('browser:create', 'pane-1', 'https://source.example')
+    emitIpc('browser:show', 'pane-1')
+    const sourceView = mockState.createdViews[0]
+
+    const response = mockState.callbacksByView.get(sourceView)?.onWindowOpen?.({
+      url: 'https://dest.example',
+      frameName: '_blank',
+      features: '',
+      disposition: 'background-tab',
+      referrer: { url: 'https://source.example', policy: 'strict-origin-when-cross-origin' }
+    })
+
+    expect(response).toEqual({ action: 'deny' })
+    expect(mainWindow.webContents.send).toHaveBeenCalledWith(
+      'browser:openWorkspace',
+      expect.objectContaining({
+        sourcePaneId: 'pane-1',
+        url: 'https://dest.example',
+        background: true
+      })
+    )
+    expect(mockState.createdViews).toHaveLength(2)
+    expect(mockState.createdViews[1].webContents.loadURL).toHaveBeenCalledWith('https://dest.example', {
+      httpReferrer: { url: 'https://source.example', policy: 'strict-origin-when-cross-origin' },
+      postData: undefined,
+      extraHeaders: undefined
+    })
+  })
+
+  it('preserves referrer and post data for new workspaces created from target=_blank forms', () => {
+    emitIpc('browser:create', 'pane-1', 'https://source.example')
+    emitIpc('browser:show', 'pane-1')
+    const sourceView = mockState.createdViews[0]
+
+    mockState.callbacksByView.get(sourceView)?.onWindowOpen?.({
+      url: 'https://dest.example/submit',
+      frameName: '_blank',
+      features: '',
+      disposition: 'foreground-tab',
+      referrer: { url: 'https://source.example/form', policy: 'strict-origin-when-cross-origin' },
+      postBody: {
+        contentType: 'application/x-www-form-urlencoded',
+        data: [{ bytes: Buffer.from('code=123') }]
+      }
+    })
+
+    const payloadCall = (mainWindow.webContents.send as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([channel]) => channel === 'browser:openWorkspace'
+    )
+    const payload = payloadCall?.[1] as { paneId: string } | undefined
+
+    expect(payload?.paneId).toBeTruthy()
+
+    emitIpc('browser:create', payload!.paneId, 'https://ignored.example')
+    emitIpc('browser:show', payload!.paneId)
+
+    const openedView = mockState.createdViews[1]
+    expect(openedView.webContents.loadURL).toHaveBeenCalledWith('https://dest.example/submit', {
+      httpReferrer: { url: 'https://source.example/form', policy: 'strict-origin-when-cross-origin' },
+      postData: [{ bytes: Buffer.from('code=123') }],
+      extraHeaders: 'content-type: application/x-www-form-urlencoded\n'
+    })
+  })
+
+  it('allows popup windows for new-window requests', () => {
+    emitIpc('browser:create', 'pane-1', 'https://source.example')
+    emitIpc('browser:show', 'pane-1')
+    const sourceView = mockState.createdViews[0]
+
+    const response = mockState.callbacksByView.get(sourceView)?.onWindowOpen?.({
+      url: 'https://bank.example/auth',
+      frameName: 'oauthPopup',
+      features: 'width=500,height=700',
+      disposition: 'new-window',
+      referrer: { url: 'https://source.example', policy: 'strict-origin-when-cross-origin' }
+    }) as Electron.WindowOpenHandlerResponse
+
+    expect(response.action).toBe('allow')
+    expect(response.createWindow).toBeTypeOf('function')
+    expect(response.createWindow?.({ width: 500, height: 700 } as Electron.BrowserWindowConstructorOptions))
+      .toEqual({ id: 'popup-web-contents' })
+    expect(mockState.createBrowserPopupWindow).toHaveBeenCalledWith({ width: 500, height: 700 })
+  })
+
+  it('opens external protocols via the OS instead of navigating inside ArcNext', () => {
+    emitIpc('browser:create', 'pane-1', 'https://source.example')
+    emitIpc('browser:show', 'pane-1')
+    const sourceView = mockState.createdViews[0]
+
+    const prevented = vi.fn()
+    const handled = mockState.callbacksByView.get(sourceView)?.onWillNavigate?.('mailto:test@example.com')
+
+    if (handled) prevented()
+
+    expect(handled).toBe(true)
+    expect(prevented).toHaveBeenCalledTimes(1)
+    expect(mockState.openExternal).toHaveBeenCalledWith('mailto:test@example.com')
   })
 })

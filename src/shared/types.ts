@@ -54,25 +54,11 @@ export interface PinnedWorkspaceEntry {
   panes: SerializedPane[]
 }
 
-export interface ExternalBrowserWindowInfo {
-  id: number
-  url: string
-  title: string
-}
-
-export interface BrowserDockedPayload {
+export interface BrowserOpenWorkspacePayload {
   paneId: string
   url: string
-  title: string
-}
-
-export interface BrowserUndockedPayload {
-  paneId: string
-}
-
-export interface ExternalBrowserShellState {
-  url: string
-  title: string
+  background: boolean
+  sourcePaneId?: string
 }
 
 export type AgentType = 'claude' | 'codex' | 'opencode'
@@ -115,21 +101,11 @@ export interface IPCChannels {
   'browser:loadFailed': (paneId: string, errorCode: number, errorDesc: string) => void
   'browser:focused': (paneId: string) => void
   'browser:faviconChanged': (paneId: string, faviconUrl: string) => void
-  // External browser windows
-  'browser:listExternalWindows': () => Promise<ExternalBrowserWindowInfo[]>
-  'browser:dockWindow': (windowId: number) => Promise<BrowserDockedPayload | null>
-  // Dock/undock
-  'browser:undock': (paneId: string) => Promise<boolean>
-  'browser:docked': (payload: BrowserDockedPayload) => void
-  'browser:undocked': (payload: BrowserUndockedPayload) => void
+  'browser:openWorkspace': (payload: BrowserOpenWorkspacePayload) => void
   'browser:findInPage': (paneId: string, text: string, forward?: boolean) => void
   'browser:stopFindInPage': (paneId: string) => void
   'browser:foundInPage': (paneId: string, activeMatch: number, totalMatches: number) => void
   'browser:appShortcut': (key: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean) => void
   'browser:audioStateChanged': (paneId: string, playing: boolean, muted: boolean) => void
   'browser:toggleMute': (paneId: string) => void
-  // External shell window
-  'externalBrowser:getState': () => Promise<ExternalBrowserShellState | null>
-  'externalBrowser:dockCurrentWindow': () => void
-  'externalBrowser:stateChanged': (state: ExternalBrowserShellState) => void
 }

@@ -6,7 +6,7 @@ import {
 } from '../model/gridLayout'
 import { getVisualWorkspaceOrder } from '../model/workspaceGrouping'
 import { createTerminal, destroyTerminal, serializeTerminal } from '../model/terminalManager'
-import { destroyBrowserView, undockBrowserView } from '../model/browserManager'
+import { destroyBrowserView } from '../model/browserManager'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo, SerializedPane, PinnedWorkspaceEntry, AgentState } from '../../shared/types'
 
 let nextPaneId = 1
@@ -76,6 +76,8 @@ interface BrowserPaneOptions {
   paneId?: string
   title?: string
   isLoading?: boolean
+  afterPaneId?: string
+  activate?: boolean
 }
 
 interface PaneStore {
@@ -120,10 +122,6 @@ interface PaneStore {
   setBrowserPaneNavState: (id: string, canGoBack: boolean, canGoForward: boolean) => void
   setBrowserPaneLoading: (id: string, isLoading: boolean) => void
   setBrowserPaneFavicon: (id: string, faviconUrl: string) => void
-
-  // Dock/undock
-  undockBrowserPane: (paneId: string) => void
-  removeUndockedBrowserPane: (paneId: string) => void
 
   // Pinned workspaces
   pinWorkspace: (id: string) => void
@@ -200,6 +198,10 @@ let _persistTimer: ReturnType<typeof setTimeout> | null = null
 
 function isPaneInPinnedWorkspace(paneId: string, workspaces: Workspace[]): boolean {
   return workspaces.some((w) => w.pinned && allPaneIds(w.grid).includes(paneId))
+}
+
+function findWorkspaceIndexForPane(workspaces: Workspace[], paneId: string): number {
+  return workspaces.findIndex((w) => allPaneIds(w.grid).includes(paneId))
 }
 
 /** Shared logic for closing a pane in any workspace */
@@ -559,10 +561,19 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     }
     const newPanes = new Map(panes)
     newPanes.set(pane.id, pane)
-    pushWorkspaceHistory(activeWorkspaceId)
+    const sourceIndex = options.afterPaneId
+      ? findWorkspaceIndexForPane(workspaces, options.afterPaneId)
+      : workspaces.findIndex((w) => w.id === activeWorkspaceId)
+    const insertAt = sourceIndex >= 0 ? sourceIndex + 1 : workspaces.length
+    const nextWorkspaces = [...workspaces]
+    nextWorkspaces.splice(insertAt, 0, workspace)
+    const activate = options.activate ?? true
+
+    if (activate) pushWorkspaceHistory(activeWorkspaceId)
+
     set({
-      workspaces: [...workspaces, workspace],
-      activeWorkspaceId: workspace.id,
+      workspaces: nextWorkspaces,
+      activeWorkspaceId: activate ? workspace.id : activeWorkspaceId,
       panes: newPanes
     })
   },
@@ -623,65 +634,6 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     newPanes.set(id, { ...pane, faviconUrl })
     set({ panes: newPanes })
     if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
-  },
-
-  undockBrowserPane: (paneId) => {
-    void undockBrowserView(paneId).catch(() => {})
-  },
-
-  removeUndockedBrowserPane: (paneId) => {
-    const { workspaces, activeWorkspaceId, panes } = get()
-
-    const wsIndex = workspaces.findIndex((w) => allPaneIds(w.grid).includes(paneId))
-    if (wsIndex === -1) return
-
-    const ws = workspaces[wsIndex]
-    const ids = allPaneIds(ws.grid)
-    const newPanes = new Map(panes)
-    newPanes.delete(paneId)
-
-    if (ids.length <= 1) {
-      if (workspaces.length <= 1) {
-        const replacement = makeWorkspace()
-        newPanes.set(replacement.pane.id, replacement.pane)
-        set({
-          workspaces: [replacement.workspace],
-          activeWorkspaceId: replacement.workspace.id,
-          panes: newPanes
-        })
-        if (ws.pinned) get().persistPinned()
-        return
-      }
-
-      const remaining = workspaces.filter((w) => w.id !== ws.id)
-      purgeFromHistory(ws.id)
-      const newActive = ws.id === activeWorkspaceId
-        ? (popWorkspaceHistory(remaining) ?? remaining[Math.max(0, wsIndex - 1)].id)
-        : activeWorkspaceId
-
-      set({ workspaces: remaining, activeWorkspaceId: newActive, panes: newPanes })
-      if (ws.pinned) get().persistPinned()
-      return
-    }
-
-    const newGrid = removePane(ws.grid, paneId)
-    if (!newGrid) return
-
-    const newActivePaneId = paneId === ws.activePaneId
-      ? adjacentPaneId(ws.grid, paneId, -1)
-      : ws.activePaneId
-
-    const updatedWs: Workspace = {
-      ...ws,
-      grid: newGrid,
-      activePaneId: newActivePaneId
-    }
-
-    set({
-      workspaces: workspaces.map((w) => w.id === ws.id ? updatedWs : w),
-      panes: newPanes
-    })
-    if (ws.pinned) get().persistPinned()
   },
 
   pinWorkspace: (id) => {

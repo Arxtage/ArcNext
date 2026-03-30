@@ -1,7 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
-import { randomUUID } from 'crypto'
 import { setupPTY, killAllPTY } from './pty'
 import { showQuitDialog } from './quitDialog'
 import { setupDirHistory, flushDirHistorySync } from './dirHistory'
@@ -9,42 +8,18 @@ import { setupDirDiscovery } from './dirDiscovery'
 import { setupWebHistory, flushWebHistorySync } from './webHistory'
 import { setupPinnedWorkspaces, flushPinnedWorkspacesSync } from './pinnedWorkspaces'
 import { hasFullDiskAccess, showFDADialog } from './fullDiskAccess'
-import { setupBrowserViewManager, destroyAllBrowserViews, adoptView, releaseView } from './browserViewManager'
 import {
-  createExternalBrowserWindow,
-  createExternalBrowserWindowFromView,
-  getExternalShellState,
-  listExternalWindows,
-  dockExternalWindow,
-  closeAllExternalWindows,
-  requestDockForShellWebContents,
-  setDockRequestHandler
-} from './externalBrowserWindows'
-import type { BrowserDockedPayload } from '../shared/types'
+  setupBrowserViewManager,
+  destroyAllBrowserViews,
+  openBrowserWorkspace,
+  shouldOpenUrlExternally
+} from './browserViewManager'
 
 // Prevent sites from detecting Electron as an automated browser
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 let mainWindow: BrowserWindow | null = null
 let forceQuit = false
-
-function emitDocked(payload: BrowserDockedPayload): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.webContents.send('browser:docked', payload)
-}
-
-function dockExternalWindowIntoWorkspace(windowId: number): BrowserDockedPayload | null {
-  const result = dockExternalWindow(windowId)
-  if (!result) return null
-
-  const { view, url, title } = result
-  const paneId = randomUUID()
-  adoptView(paneId, view)
-
-  const payload: BrowserDockedPayload = { paneId, url, title }
-  emitDocked(payload)
-  return payload
-}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -82,38 +57,16 @@ function createWindow(): void {
   setupPinnedWorkspaces()
   setupBrowserViewManager(mainWindow)
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    createExternalBrowserWindow(url)
-    return { action: 'deny' }
-  })
-
-  ipcMain.handle('browser:listExternalWindows', () => listExternalWindows())
-
-  ipcMain.handle('browser:dockWindow', (_e, windowId: number) => {
-    return dockExternalWindowIntoWorkspace(windowId)
-  })
-
-  ipcMain.handle('browser:undock', (_e, paneId: string) => {
-    const view = releaseView(paneId)
-    if (!view) return false
-    createExternalBrowserWindowFromView(view)
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('browser:undocked', { paneId })
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    if (shouldOpenUrlExternally(details.url)) {
+      void shell.openExternal(details.url)
+      return { action: 'deny' }
     }
-    return true
-  })
 
-  ipcMain.handle('externalBrowser:getState', (event) => {
-    return getExternalShellState(event.sender)
-  })
-
-  ipcMain.on('externalBrowser:dockCurrentWindow', (event) => {
-    requestDockForShellWebContents(event.sender)
-  })
-
-  // Handle native dock requests from external window menu/shortcut.
-  setDockRequestHandler((windowId: number) => {
-    dockExternalWindowIntoWorkspace(windowId)
+    openBrowserWorkspace(details.url, {
+      background: details.disposition === 'background-tab'
+    })
+    return { action: 'deny' }
   })
 
   ipcMain.on('sidebar:traffic-lights', (_e, visible: boolean) => {
@@ -221,7 +174,6 @@ app.on('before-quit', () => {
   if (!forceQuit) return
   killAllPTY()
   destroyAllBrowserViews()
-  closeAllExternalWindows()
   flushDirHistorySync()
   flushWebHistorySync()
   flushPinnedWorkspacesSync()

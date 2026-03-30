@@ -31,7 +31,9 @@ interface BrowserWebContentsCallbacks {
   onLoadFailed?: (errorCode: number, errorDescription: string) => void
   onFocus?: () => void
   onFavicon?: (faviconUrl: string) => void
-  onOpenExternal?: (url: string) => void
+  onOpenLinkInNewWorkspace?: (url: string) => void
+  onWindowOpen?: (details: Electron.HandlerDetails) => Electron.WindowOpenHandlerResponse
+  onWillNavigate?: (url: string) => boolean
   onFoundInPage?: (activeMatch: number, totalMatches: number) => void
   onAudioStateChanged?: (playing: boolean, muted: boolean) => void
   onBeforeInput?: (input: Electron.Input) => boolean
@@ -70,8 +72,8 @@ function buildContextMenu(
 
   if (linkURL) {
     menu.append(new MenuItem({
-      label: 'Open Link in New Window',
-      click: () => callbacks.onOpenExternal?.(linkURL)
+      label: 'Open Link in New Workspace',
+      click: () => callbacks.onOpenLinkInNewWorkspace?.(linkURL)
     }))
     menu.append(new MenuItem({
       label: 'Copy Link Address',
@@ -219,6 +221,17 @@ export function wireBrowserViewEvents(
     callbacks.onFoundInPage?.(result.activeMatchOrdinal, result.matches)
   }
 
+  const onWillNavigate = (
+    event: Electron.Event,
+    details: { url: string; isMainFrame: boolean } | string
+  ): void => {
+    const url = typeof details === 'string' ? details : details.url
+    const isMainFrame = typeof details === 'string' ? true : details.isMainFrame
+    if (!isMainFrame) return
+    const handled = callbacks.onWillNavigate?.(url) ?? false
+    if (handled) event.preventDefault()
+  }
+
   const onBeforeInput = (event: Electron.Event, input: Electron.Input): void => {
     const handled = callbacks.onBeforeInput?.(input) ?? false
     if (handled) {
@@ -256,6 +269,7 @@ export function wireBrowserViewEvents(
   wc.on('page-favicon-updated', onFaviconUpdated)
   wc.on('before-input-event', onBeforeInput)
   wc.on('found-in-page', onFoundInPage)
+  wc.on('will-navigate', onWillNavigate)
 
   const onContextMenu = (
     _event: Electron.Event,
@@ -268,10 +282,7 @@ export function wireBrowserViewEvents(
 
   wc.on('context-menu', onContextMenu)
 
-  wc.setWindowOpenHandler(({ url }) => {
-    callbacks.onOpenExternal?.(url)
-    return { action: 'deny' }
-  })
+  wc.setWindowOpenHandler((details) => callbacks.onWindowOpen?.(details) ?? { action: 'deny' })
 
   return () => {
     wc.removeListener('media-started-playing', onMediaStarted)
@@ -286,6 +297,7 @@ export function wireBrowserViewEvents(
     wc.removeListener('page-favicon-updated', onFaviconUpdated)
     wc.removeListener('before-input-event', onBeforeInput)
     wc.removeListener('found-in-page', onFoundInPage)
+    wc.removeListener('will-navigate', onWillNavigate)
     wc.removeListener('context-menu', onContextMenu)
     wc.removeListener('did-finish-load', enablePinchZoom)
     wc.setWindowOpenHandler(() => ({ action: 'deny' }))

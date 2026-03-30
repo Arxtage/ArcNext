@@ -1,10 +1,13 @@
-import { BrowserWindow, WebContentsView, ipcMain } from 'electron'
-import { createExternalBrowserWindow } from './externalBrowserWindows'
+import { randomUUID } from 'crypto'
+import { BrowserWindow, WebContentsView, ipcMain, shell } from 'electron'
+import type { BrowserOpenWorkspacePayload } from '../shared/types'
+import { createBrowserPopupWindow } from './browserPopups'
 import { createBrowserView, normalizeBrowserUrl, wireBrowserViewEvents } from './browserViewUtils'
 
 interface ManagedBrowserView {
   paneId: string
   currentUrl: string
+  initialLoadOptions: Electron.LoadURLOptions | null
   bounds: { x: number; y: number; width: number; height: number }
   view: WebContentsView | null
   cleanup: (() => void) | null
@@ -18,10 +21,150 @@ const MAX_HIDDEN_LIVE_VIEWS = 1
 const HIDDEN_VIEW_SLEEP_MS = 15_000
 
 const views = new Map<string, ManagedBrowserView>()
+const pendingOpenRequests = new Map<string, { url: string; loadOptions: Electron.LoadURLOptions | null }>()
 let win: BrowserWindow | null = null
 
 function sendToRenderer(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+}
+
+function emitCurrentViewState(
+  paneId: string,
+  managed: Pick<ManagedBrowserView, 'mediaPlaying'>,
+  wc: Electron.WebContents
+): void {
+  if (!win || win.isDestroyed()) return
+
+  win.webContents.send('browser:titleChanged', paneId, wc.getTitle())
+  win.webContents.send('browser:urlChanged', paneId, wc.getURL())
+  win.webContents.send('browser:loadingChanged', paneId, wc.isLoading())
+  win.webContents.send('browser:navStateChanged', paneId, wc.canGoBack(), wc.canGoForward())
+  win.webContents.send('browser:audioStateChanged', paneId, managed.mediaPlaying, wc.isAudioMuted())
+
+  wc.executeJavaScript("document.querySelector('link[rel*=\"icon\"]')?.href || ''")
+    .then((favicon: string) => {
+      if (favicon && win && !win.isDestroyed()) {
+        win.webContents.send('browser:faviconChanged', paneId, favicon)
+      }
+    })
+    .catch(() => {})
+}
+
+export function shouldOpenUrlExternally(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol.toLowerCase()
+    return !['http:', 'https:', 'file:', 'about:', 'data:', 'blob:'].includes(protocol)
+  } catch {
+    return false
+  }
+}
+
+function popupFeatureKeys(features: string): string[] {
+  return features
+    .split(',')
+    .map((feature) => feature.split('=')[0]?.trim().toLowerCase())
+    .filter((feature): feature is string => Boolean(feature))
+}
+
+function hasPopupFeatures(features: string): boolean {
+  const keys = popupFeatureKeys(features)
+  if (keys.length === 0) return false
+  return keys.some((key) => !['noopener', 'noreferrer', 'attributionsrc'].includes(key))
+}
+
+function shouldOpenAsPopup(details: Electron.HandlerDetails): boolean {
+  const frameName = details.frameName.trim()
+  return details.disposition === 'new-window' ||
+    hasPopupFeatures(details.features) ||
+    (frameName.length > 0 && frameName !== '_blank')
+}
+
+function buildPostBodyHeaders(postBody: Electron.PostBody | undefined): string | undefined {
+  if (!postBody) return undefined
+  const boundary = postBody.boundary ? `; boundary=${postBody.boundary}` : ''
+  return `content-type: ${postBody.contentType}${boundary}\n`
+}
+
+function buildLoadOptions(details: Electron.HandlerDetails): Electron.LoadURLOptions | null {
+  const extraHeaders = buildPostBodyHeaders(details.postBody)
+  const hasLoadOptions = Boolean(details.postBody || details.referrer.url || extraHeaders)
+  if (!hasLoadOptions) return null
+
+  return {
+    httpReferrer: details.referrer.url ? details.referrer : undefined,
+    postData: details.postBody?.data,
+    extraHeaders
+  }
+}
+
+export function openBrowserWorkspace(
+  url: string,
+  options: {
+    background?: boolean
+    sourcePaneId?: string
+    loadOptions?: Electron.LoadURLOptions | null
+  } = {}
+): string {
+  const paneId = randomUUID()
+  const loadOptions = options.loadOptions ?? null
+  const background = options.background ?? false
+
+  if (background) {
+    const managed: ManagedBrowserView = {
+      paneId,
+      currentUrl: url,
+      initialLoadOptions: null,
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      view: null,
+      cleanup: null,
+      mediaPlaying: false,
+      attached: false,
+      lastHiddenAt: null,
+      sleepTimer: null
+    }
+    views.set(paneId, managed)
+    const { view } = ensureManagedView(managed)
+    view.webContents.loadURL(url, loadOptions ?? undefined)
+    markViewHidden(managed)
+  } else {
+    pendingOpenRequests.set(paneId, {
+      url,
+      loadOptions
+    })
+  }
+
+  const payload: BrowserOpenWorkspacePayload = {
+    paneId,
+    url,
+    background,
+    ...(options.sourcePaneId ? { sourcePaneId: options.sourcePaneId } : {})
+  }
+  sendToRenderer('browser:openWorkspace', payload)
+  return paneId
+}
+
+export function handleBrowserWindowOpen(
+  sourcePaneId: string | undefined,
+  details: Electron.HandlerDetails
+): Electron.WindowOpenHandlerResponse {
+  if (shouldOpenUrlExternally(details.url)) {
+    void shell.openExternal(details.url)
+    return { action: 'deny' }
+  }
+
+  if (shouldOpenAsPopup(details)) {
+    return {
+      action: 'allow',
+      createWindow: (options) => createBrowserPopupWindow(options)
+    }
+  }
+
+  openBrowserWorkspace(details.url, {
+    sourcePaneId,
+    background: details.disposition === 'background-tab',
+    loadOptions: buildLoadOptions(details)
+  })
+  return { action: 'deny' }
 }
 
 function wireViewEvents(view: WebContentsView, paneId: string): () => void {
@@ -37,7 +180,19 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
     onLoadFailed: (errorCode, errorDescription) => sendToRenderer('browser:loadFailed', paneId, errorCode, errorDescription),
     onFocus: () => sendToRenderer('browser:focused', paneId),
     onFavicon: (faviconUrl) => sendToRenderer('browser:faviconChanged', paneId, faviconUrl),
-    onOpenExternal: (url) => createExternalBrowserWindow(url),
+    onOpenLinkInNewWorkspace: (url) => {
+      if (shouldOpenUrlExternally(url)) {
+        void shell.openExternal(url)
+        return
+      }
+      openBrowserWorkspace(url, { sourcePaneId: paneId })
+    },
+    onWindowOpen: (details) => handleBrowserWindowOpen(paneId, details),
+    onWillNavigate: (url) => {
+      if (!shouldOpenUrlExternally(url)) return false
+      void shell.openExternal(url)
+      return true
+    },
     onFoundInPage: (activeMatch, totalMatches) => sendToRenderer('browser:foundInPage', paneId, activeMatch, totalMatches),
     onAudioStateChanged: (playing, muted) => {
       const managed = views.get(paneId)
@@ -168,16 +323,24 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
   win = mainWindow
 
   ipcMain.on('browser:create', (_e, paneId: string, url: string) => {
-    const initialUrl = normalizeBrowserUrl(url)
+    const pending = pendingOpenRequests.get(paneId)
+    const initialUrl = pending?.url ?? normalizeBrowserUrl(url)
     const existing = views.get(paneId)
     if (existing) {
-      if (!existing.view) existing.currentUrl = initialUrl
+      if (existing.view) {
+        emitCurrentViewState(paneId, existing, existing.view.webContents)
+      } else {
+        existing.currentUrl = initialUrl
+        existing.initialLoadOptions = pending?.loadOptions ?? existing.initialLoadOptions
+      }
+      pendingOpenRequests.delete(paneId)
       return
     }
 
     views.set(paneId, {
       paneId,
       currentUrl: initialUrl,
+      initialLoadOptions: pending?.loadOptions ?? null,
       bounds: { x: 0, y: 0, width: 0, height: 0 },
       view: null,
       cleanup: null,
@@ -186,6 +349,7 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
       lastHiddenAt: null,
       sleepTimer: null
     })
+    pendingOpenRequests.delete(paneId)
   })
 
   ipcMain.on('browser:destroy', (_e, paneId: string) => {
@@ -210,7 +374,9 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
 
     const { view, created } = ensureManagedView(managed)
     if (created && managed.currentUrl) {
-      view.webContents.loadURL(managed.currentUrl)
+      const loadOptions = managed.initialLoadOptions ?? undefined
+      view.webContents.loadURL(managed.currentUrl, loadOptions)
+      managed.initialLoadOptions = null
     }
 
     const children = win.contentView.children
@@ -240,6 +406,7 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
     const managed = views.get(paneId)
     if (!managed) return
     managed.currentUrl = normalizeBrowserUrl(url)
+    managed.initialLoadOptions = null
     const { view } = ensureManagedView(managed)
     view.webContents.loadURL(managed.currentUrl)
     if (!managed.attached) markViewHidden(managed)
@@ -287,62 +454,15 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
 }
 
 function destroyView(paneId: string): void {
+  pendingOpenRequests.delete(paneId)
   const managed = views.get(paneId)
   if (!managed) return
   closeManagedView(managed)
   views.delete(paneId)
 }
 
-export function adoptView(paneId: string, view: WebContentsView): void {
-  const cleanup = wireViewEvents(view, paneId)
-  views.set(paneId, {
-    paneId,
-    currentUrl: view.webContents.getURL(),
-    bounds: { x: 0, y: 0, width: 0, height: 0 },
-    view,
-    cleanup,
-    mediaPlaying: false,
-    attached: false,
-    lastHiddenAt: null,
-    sleepTimer: null
-  })
-
-  // Send initial state to renderer so it picks up current URL/title/nav
-  if (win && !win.isDestroyed()) {
-    const wc = view.webContents
-    const url = wc.getURL()
-    const title = wc.getTitle()
-    win.webContents.send('browser:titleChanged', paneId, title)
-    win.webContents.send('browser:urlChanged', paneId, url)
-    win.webContents.send('browser:loadingChanged', paneId, wc.isLoading())
-    win.webContents.send('browser:navStateChanged', paneId, wc.canGoBack(), wc.canGoForward())
-
-    // Extract favicon for already-loaded pages (page-favicon-updated won't re-fire)
-    wc.executeJavaScript("document.querySelector('link[rel*=\"icon\"]')?.href || ''")
-      .then((favicon: string) => {
-        if (favicon && win && !win.isDestroyed()) {
-          win.webContents.send('browser:faviconChanged', paneId, favicon)
-        }
-      })
-      .catch(() => {})
-  }
-}
-
-export function releaseView(paneId: string): WebContentsView | null {
-  const managed = views.get(paneId)
-  if (!managed?.view) return null
-
-  managed.cleanup?.()
-  managed.cleanup = null
-  clearSleepTimer(managed)
-
-  detachManagedView(managed)
-
-  views.delete(paneId)
-  return managed.view
-}
-
 export function destroyAllBrowserViews(): void {
+  pendingOpenRequests.clear()
   for (const paneId of views.keys()) {
     destroyView(paneId)
   }

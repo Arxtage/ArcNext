@@ -29,7 +29,7 @@ Terminals and browser views side by side in any layout.
 ![Split Panes demo](assets/demo-split-panes.gif)
 
 ### Integrated Browser
-Dock any web page next to your terminals. Links open in-app. Undock back to a standalone window anytime.
+Browse next to your terminals. New-page links open as ArcNext workspaces, while auth/payment popups can still open in lightweight windows when sites require them.
 
 ![Integrated Browser demo](assets/demo-browser.gif)
 
