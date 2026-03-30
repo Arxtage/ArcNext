@@ -192,8 +192,18 @@ export function wireBrowserViewEvents(
     sendNavState()
   }
 
-  const onDidFailLoad = (_event: Electron.Event, errorCode: number, errorDescription: string): void => {
+  const onDidFailLoad = (
+    _event: Electron.Event,
+    errorCode: number,
+    errorDescription: string,
+    _validatedURL: string,
+    isMainFrame: boolean
+  ): void => {
     if (errorCode === -3) return
+    // Gmail and other complex apps can intentionally hit blocked subframe loads
+    // (e.g. CSP / frame-ancestor failures) after the main page has loaded.
+    // Those should not replace the whole browser pane with a fatal error state.
+    if (!isMainFrame) return
     callbacks.onLoadFailed?.(errorCode, errorDescription)
   }
 
