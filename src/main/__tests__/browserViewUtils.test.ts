@@ -21,7 +21,7 @@ vi.mock('electron', () => {
 
   return {
     app: {
-      userAgentFallback: 'Mozilla/5.0 Electron/34.0.0 ArcNext/0.6.2 Safari/537.36',
+      userAgentFallback: 'Mozilla/5.0 Electron/34.0.0 ArcNext/0.7.0 Safari/537.36',
       getName: () => 'ArcNext'
     },
     session: {
