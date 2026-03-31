@@ -47,11 +47,12 @@ export default function App() {
   const switchWorkspace = usePaneStore((s) => s.switchWorkspace)
   const navigateDir = usePaneStore((s) => s.navigateDir)
   const toggleSidebar = usePaneStore((s) => s.toggleSidebar)
+  const undockBrowserPane = usePaneStore((s) => s.undockBrowserPane)
+  const removeUndockedBrowserPane = usePaneStore((s) => s.removeUndockedBrowserPane)
   const workspaces = usePaneStore((s) => s.workspaces)
   const setOverlay = usePaneStore((s) => s.setOverlay)
   const wakeWorkspace = usePaneStore((s) => s.wakeWorkspace)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const liveActiveWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId && !workspace.dormant) ?? null
 
   const openPicker = () => { window.arcnext.browser.focusRenderer(); setPickerOpen(true); setOverlay('picker', true) }
   const closePicker = () => { setPickerOpen(false); setOverlay('picker', false) }
@@ -157,12 +158,11 @@ export default function App() {
       window.arcnext.browser.onAudioStateChanged((paneId, playing, muted) => {
         setAudioState(paneId, playing, muted)
       }),
-      window.arcnext.browser.onOpenWorkspace(({ paneId, url, background, sourcePaneId }) => {
-        addBrowserWorkspace(url, {
-          paneId,
-          afterPaneId: sourcePaneId,
-          activate: !background
-        })
+      window.arcnext.browser.onDocked(({ paneId, url, title }) => {
+        addBrowserWorkspace(url, { paneId, title, isLoading: false })
+      }),
+      window.arcnext.browser.onUndocked(({ paneId }) => {
+        removeUndockedBrowserPane(paneId)
       })
     ]
     return () => unsubs.forEach((unsub) => unsub())
@@ -174,7 +174,8 @@ export default function App() {
     setBrowserPaneNavState,
     setActivePaneInWorkspace,
     setBrowserPaneFavicon,
-    setAudioState
+    setAudioState,
+    removeUndockedBrowserPane
   ])
 
   // Receive forwarded app shortcuts from WebContentsView and re-dispatch as synthetic keydown events
@@ -230,6 +231,13 @@ export default function App() {
           closePicker()
           return
         }
+        return
+      }
+
+      // Cmd+Shift+Enter — undock active browser pane
+      if (meta && e.shiftKey && !alt && e.key === 'Enter' && activePaneType === 'browser' && focusState !== 'ui') {
+        e.preventDefault()
+        if (ws) undockBrowserPane(ws.activePaneId)
         return
       }
 
@@ -381,17 +389,17 @@ export default function App() {
 
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [splitActive, closePane, switchWorkspace, navigateDir, toggleSidebar, wakeWorkspace, ws, workspaces, pickerOpen, activePaneType, focusState, setFocusState])
+  }, [splitActive, closePane, switchWorkspace, navigateDir, toggleSidebar, undockBrowserPane, wakeWorkspace, ws, workspaces, pickerOpen, activePaneType, focusState, setFocusState])
 
   return (
     <div id="app">
       <Sidebar />
       <div id="workspace">
-        {liveActiveWorkspace && (
-          <div key={liveActiveWorkspace.id} className="ws-layer active">
-            <GridView grid={liveActiveWorkspace.grid} workspaceId={liveActiveWorkspace.id} />
+        {workspaces.filter((w) => !w.dormant).map((w) => (
+          <div key={w.id} className={`ws-layer ${w.id === activeWorkspaceId ? 'active' : ''}`}>
+            <GridView grid={w.grid} workspaceId={w.id} />
           </div>
-        )}
+        ))}
       </div>
       {pickerOpen && <UnifiedPicker onClose={closePicker} />}
     </div>

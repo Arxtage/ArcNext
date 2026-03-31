@@ -21,7 +21,7 @@ vi.mock('electron', () => {
 
   return {
     app: {
-      userAgentFallback: 'Mozilla/5.0 Electron/34.0.0 ArcNext/0.7.0 Safari/537.36',
+      userAgentFallback: 'Mozilla/5.0 Electron/34.0.0 ArcNext/0.6.2 Safari/537.36',
       getName: () => 'ArcNext'
     },
     session: {
@@ -145,35 +145,5 @@ describe('wireBrowserViewEvents', () => {
     )
 
     expect(onLoadFailed).not.toHaveBeenCalled()
-  })
-
-  it('delegates window-open requests to the supplied handler', () => {
-    const { view } = createMockView()
-    const onWindowOpen = vi.fn(() => ({ action: 'allow' as const }))
-
-    wireBrowserViewEvents(view, { onWindowOpen })
-
-    const handler = (view.webContents.setWindowOpenHandler as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
-    expect(handler({
-      url: 'https://example.com',
-      frameName: '_blank',
-      features: '',
-      disposition: 'foreground-tab',
-      referrer: { url: 'https://source.example', policy: 'strict-origin-when-cross-origin' }
-    })).toEqual({ action: 'allow' })
-    expect(onWindowOpen).toHaveBeenCalled()
-  })
-
-  it('prevents navigation when the callback handles it externally', () => {
-    const { view, emit } = createMockView()
-    const preventDefault = vi.fn()
-
-    wireBrowserViewEvents(view, {
-      onWillNavigate: (url) => url.startsWith('mailto:')
-    })
-
-    emit('will-navigate', { preventDefault }, { url: 'mailto:test@example.com', isMainFrame: true })
-
-    expect(preventDefault).toHaveBeenCalledTimes(1)
   })
 })

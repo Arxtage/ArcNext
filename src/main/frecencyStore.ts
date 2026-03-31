@@ -50,26 +50,6 @@ export class FrecencyStore<T extends FrecencyEntry> {
     this.debouncedFlush()
   }
 
-  mapEntries(mapper: (entry: T) => T): boolean {
-    let changed = false
-    const next = new Map<string, T>()
-
-    for (const entry of this.entries.values()) {
-      const mapped = mapper(entry)
-      if (mapped !== entry || this.keyFn(mapped) !== this.keyFn(entry)) {
-        changed = true
-      }
-      next.set(this.keyFn(mapped), mapped)
-    }
-
-    if (!changed) return false
-
-    this.entries = next
-    this.prune()
-    this.debouncedFlush()
-    return true
-  }
-
   query(): Array<T & { score: number }> {
     const now = Date.now()
     return [...this.entries.values()]

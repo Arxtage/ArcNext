@@ -15,22 +15,6 @@ export function isValidUrl(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
-export function isLoopbackUrl(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase()
-    return (
-      hostname === 'localhost' ||
-      hostname.endsWith('.localhost') ||
-      hostname === '0.0.0.0' ||
-      hostname === '::1' ||
-      /^\[::1\]$/.test(hostname) ||
-      /^127(?:\.\d{1,3}){3}$/.test(hostname)
-    )
-  } catch {
-    return false
-  }
-}
-
 export function ensureProtocol(input: string): string {
   if (/^https?:\/\//i.test(input)) return input
   return `https://${input}`

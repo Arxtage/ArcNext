@@ -743,7 +743,7 @@ body,
     background: #121212;
 }
 
-/* ── Workspace layer (only the active live workspace is rendered) ── */
+/* ── Workspace layers (all rendered, only active visible) ── */
 .ws-layer {
     position: absolute;
     inset: 0;
