@@ -11,8 +11,8 @@ export function showQuitDialog(parent: BrowserWindow): Promise<boolean> {
 
   return new Promise((resolve) => {
     const bounds = parent.getBounds()
-    const width = 400
-    const height = 260
+    const width = 320
+    const height = 210
 
     dialogWindow = new BrowserWindow({
       width,
