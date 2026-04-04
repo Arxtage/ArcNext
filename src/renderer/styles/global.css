@@ -866,7 +866,7 @@ body,
 .dictation-btn {
     position: absolute;
     bottom: 10px;
-    right: 10px;
+    right: 20px;
     width: 26px;
     height: 26px;
     border-radius: 50%;
@@ -916,7 +916,7 @@ body,
 .dictation-downloading {
     position: absolute;
     bottom: 10px;
-    right: 10px;
+    right: 20px;
     z-index: 10;
     display: flex;
     align-items: center;
@@ -938,7 +938,7 @@ body,
 .dictation-denied {
     position: absolute;
     bottom: 10px;
-    right: 10px;
+    right: 20px;
     z-index: 10;
     display: flex;
     align-items: center;
