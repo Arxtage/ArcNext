@@ -243,8 +243,8 @@ export default function Sidebar() {
               if (!as) continue
               if (!wsPaneAgentStates) wsPaneAgentStates = new Map()
               wsPaneAgentStates.set(pid, as)
-              if (as.status === 'thinking') { wsAgentState = as; break }
-              if (!wsAgentState) wsAgentState = as
+              if (as.status === 'thinking') wsAgentState = as
+              else if (!wsAgentState) wsAgentState = as
             }
             // Compute aggregate audio state for this workspace
             let wsAudioState: { muted: boolean; paneIds: string[] } | null = null
