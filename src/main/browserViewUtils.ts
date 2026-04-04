@@ -153,6 +153,20 @@ function buildContextMenu(
     }
   }
 
+  // Search Google for selected text
+  if (selectionText) {
+    const trimmed = selectionText.trim()
+    if (trimmed) {
+      const label = trimmed.length > 30 ? trimmed.substring(0, 30) + '\u2026' : trimmed
+      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({
+        label: `Search Google for \u201c${label}\u201d`,
+        click: () => callbacks.onOpenInNewWorkspace?.(searchUrl)
+      }))
+    }
+  }
+
   if (!isEditable && !selectionText && !linkURL && mediaType === 'none') {
     menu.append(new MenuItem({
       label: 'Back', enabled: wc.canGoBack(),
