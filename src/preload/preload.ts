@@ -146,7 +146,7 @@ const api = {
 const dictation = {
   ensureModel: () => ipcRenderer.invoke('dictation:ensureModel'),
   start: (paneId: string) => ipcRenderer.send('dictation:start', paneId),
-  stop: (paneId: string) => ipcRenderer.send('dictation:stop', paneId),
+  stop: (paneId: string) => ipcRenderer.invoke('dictation:stop', paneId),
   sendAudio: (paneId: string, pcmData: ArrayBuffer) =>
     ipcRenderer.send('dictation:audioChunk', paneId, pcmData),
   onText: (cb: (paneId: string, text: string) => void) => {

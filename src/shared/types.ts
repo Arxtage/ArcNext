@@ -55,7 +55,7 @@ export interface PinnedWorkspaceEntry {
 }
 
 
-export type DictationStatus = 'downloading' | 'recording' | 'error' | 'denied'
+export type DictationStatus = 'downloading' | 'recording' | 'transcribing' | 'error' | 'denied'
 
 export interface DictationState {
   status: DictationStatus

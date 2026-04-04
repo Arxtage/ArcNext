@@ -6,13 +6,10 @@ import { writeFileSync, unlinkSync } from 'fs'
 import { ensureWhisperReady, isWhisperReady, getWhisperPaths } from './modelManager'
 
 const SAMPLE_RATE = 16000
-const PROCESS_INTERVAL_MS = 1000
 
 interface DictationSession {
   paneId: string
   audioChunks: Buffer[]
-  processTimer: NodeJS.Timeout | null
-  processing: boolean
 }
 
 const sessions = new Map<string, DictationSession>()
@@ -68,18 +65,13 @@ function cleanWhisperOutput(raw: string): string {
   return text.length <= 1 ? '' : text
 }
 
-async function processAudio(session: DictationSession, window: BrowserWindow): Promise<void> {
-  if (session.audioChunks.length === 0 || session.processing) return
-  session.processing = true
+async function transcribeSession(session: DictationSession, window: BrowserWindow): Promise<void> {
+  if (session.audioChunks.length === 0) return
 
   const pcmData = Buffer.concat(session.audioChunks)
   session.audioChunks = []
 
-  if (pcmData.length < SAMPLE_RATE * 2 * 0.5) {
-    session.audioChunks.push(pcmData)
-    session.processing = false
-    return
-  }
+  if (pcmData.length < SAMPLE_RATE * 2 * 0.3) return
 
   const wavBuffer = createWavBuffer(pcmData)
   const tempFile = join(tmpdir(), `arcnext-dict-${session.paneId}-${Date.now()}.wav`)
@@ -95,7 +87,6 @@ async function processAudio(session: DictationSession, window: BrowserWindow): P
     console.error('[dictation] transcription error:', err)
   } finally {
     try { unlinkSync(tempFile) } catch {}
-    session.processing = false
   }
 }
 
@@ -122,30 +113,18 @@ export function setupDictation(window: BrowserWindow): void {
 
     const session: DictationSession = {
       paneId,
-      audioChunks: [],
-      processTimer: null,
-      processing: false
+      audioChunks: []
     }
-
-    session.processTimer = setInterval(() => {
-      processAudio(session, window)
-    }, PROCESS_INTERVAL_MS)
 
     sessions.set(paneId, session)
   })
 
-  ipcMain.on('dictation:stop', (_event, paneId: string) => {
+  ipcMain.handle('dictation:stop', async (_event, paneId: string) => {
     const session = sessions.get(paneId)
     if (!session) return
 
-    if (session.processTimer) {
-      clearInterval(session.processTimer)
-      session.processTimer = null
-    }
-
-    processAudio(session, window).finally(() => {
-      sessions.delete(paneId)
-    })
+    sessions.delete(paneId)
+    await transcribeSession(session, window)
   })
 
   ipcMain.on('dictation:audioChunk', (_event, paneId: string, pcmData: ArrayBuffer) => {
@@ -168,8 +147,5 @@ export function setupDictation(window: BrowserWindow): void {
 }
 
 export function stopAllDictation(): void {
-  for (const [, session] of sessions) {
-    if (session.processTimer) clearInterval(session.processTimer)
-  }
   sessions.clear()
 }

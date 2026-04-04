@@ -12,13 +12,15 @@ export default function DictationButton({ paneId }: Props) {
   const setDictationState = usePaneStore((s) => s.setDictationState)
 
   const isRecording = dictationState?.status === 'recording'
+  const isTranscribing = dictationState?.status === 'transcribing'
   const isDownloading = dictationState?.status === 'downloading'
   const isDenied = dictationState?.status === 'denied'
 
   const handleToggle = useCallback(async () => {
     if (isRecording) {
       await stopAudioCapture()
-      window.arcnext.dictation.stop(paneId)
+      setDictationState(paneId, { status: 'transcribing' })
+      await window.arcnext.dictation.stop(paneId)
       setDictationState(paneId, null)
       return
     }
@@ -83,6 +85,25 @@ export default function DictationButton({ paneId }: Props) {
 
   if (!agentState) return null
 
+  if (isTranscribing) {
+    return (
+      <button
+        className="dictation-btn transcribing"
+        disabled
+        title="Transcribing..."
+      >
+        <svg className="dictation-orbit" width="26" height="26" viewBox="0 0 26 26">
+          <circle cx="13" cy="13" r="11.5" fill="none" stroke="transparent" strokeWidth="1.5" />
+          <circle
+            cx="13" cy="13" r="11.5" fill="none" stroke="#74c0fc" strokeWidth="1.5"
+            strokeDasharray="6 66" strokeLinecap="round"
+          />
+        </svg>
+        <MicIcon color="#74c0fc" />
+      </button>
+    )
+  }
+
   if (isDenied) {
     return (
       <div className="dictation-denied">
@@ -108,22 +129,21 @@ export default function DictationButton({ paneId }: Props) {
       onClick={handleToggle}
       title={isRecording ? 'Stop dictation' : 'Voice dictation'}
     >
-      <MicIcon recording={isRecording} />
+      <MicIcon color={isRecording ? '#ff4444' : '#888'} />
     </button>
   )
 }
 
-function MicIcon({ recording }: { recording?: boolean }) {
-  const fill = recording ? '#ff4444' : '#888'
+function MicIcon({ color = '#888' }: { color?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
       <path
         d="M8 1C6.9 1 6 1.9 6 3v5c0 1.1.9 2 2 2s2-.9 2-2V3c0-1.1-.9-2-2-2z"
-        fill={fill}
+        fill={color}
       />
       <path
         d="M12 8c0 2.21-1.79 4-4 4S4 10.21 4 8H3c0 2.72 2.02 4.93 4.5 5.23V15h1v-1.77C10.98 12.93 13 10.72 13 8h-1z"
-        fill={fill}
+        fill={color}
       />
     </svg>
   )

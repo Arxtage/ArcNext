@@ -866,7 +866,7 @@ body,
 .dictation-btn {
     position: absolute;
     bottom: 10px;
-    right: 20px;
+    right: 25px;
     width: 26px;
     height: 26px;
     border-radius: 50%;
@@ -884,7 +884,8 @@ body,
 }
 
 .terminal-pane:hover .dictation-btn,
-.dictation-btn.recording {
+.dictation-btn.recording,
+.dictation-btn.transcribing {
     opacity: 1;
     pointer-events: auto;
 }
@@ -899,9 +900,26 @@ body,
     animation: dictation-pulse 1.5s ease-in-out infinite;
 }
 
+.dictation-btn.transcribing {
+    background: rgba(116, 192, 252, 0.08);
+    cursor: default;
+    position: absolute;
+}
+
 @keyframes dictation-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.3); }
     50% { box-shadow: 0 0 0 5px rgba(255, 68, 68, 0); }
+}
+
+.dictation-orbit {
+    position: absolute;
+    inset: 0;
+    animation: dictation-orbit-spin 1s linear infinite;
+}
+
+@keyframes dictation-orbit-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .dictation-spinner {
@@ -916,7 +934,7 @@ body,
 .dictation-downloading {
     position: absolute;
     bottom: 10px;
-    right: 20px;
+    right: 25px;
     z-index: 10;
     display: flex;
     align-items: center;
@@ -938,7 +956,7 @@ body,
 .dictation-denied {
     position: absolute;
     bottom: 10px;
-    right: 20px;
+    right: 25px;
     z-index: 10;
     display: flex;
     align-items: center;

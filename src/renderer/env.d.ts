@@ -67,7 +67,7 @@ interface ArcNextAPI {
   dictation: {
     ensureModel(): Promise<{ ready: boolean; error?: string }>
     start(paneId: string): void
-    stop(paneId: string): void
+    stop(paneId: string): Promise<void>
     sendAudio(paneId: string, pcmData: ArrayBuffer): void
     onText(cb: (paneId: string, text: string) => void): () => void
     checkMicPermission(): Promise<string>
