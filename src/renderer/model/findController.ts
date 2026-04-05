@@ -1,3 +1,5 @@
+import { usePaneStore } from '../store/paneStore'
+
 interface FindHandler {
   open(): void
   close(): void
@@ -6,14 +8,23 @@ interface FindHandler {
   isOpen(): boolean
 }
 
-let handler: FindHandler | null = null
+const handlers = new Map<string, FindHandler>()
+
+function activeHandler(): FindHandler | undefined {
+  const state = usePaneStore.getState()
+  const ws = state.activeWorkspaceId
+    ? state.workspaces.find((w) => w.id === state.activeWorkspaceId)
+    : undefined
+  if (!ws) return undefined
+  return handlers.get(ws.activePaneId)
+}
 
 export const findController = {
-  register:   (h: FindHandler) => { handler = h },
-  unregister: (h: FindHandler) => { if (handler === h) handler = null },
-  open:       () => handler?.open(),
-  close:      () => handler?.close(),
-  next:       () => handler?.next(),
-  prev:       () => handler?.prev(),
-  isOpen:     () => handler?.isOpen() ?? false,
+  register:   (paneId: string, h: FindHandler) => { handlers.set(paneId, h) },
+  unregister: (paneId: string) => { handlers.delete(paneId) },
+  open:       () => activeHandler()?.open(),
+  close:      () => activeHandler()?.close(),
+  next:       () => activeHandler()?.next(),
+  prev:       () => activeHandler()?.prev(),
+  isOpen:     () => activeHandler()?.isOpen() ?? false,
 }

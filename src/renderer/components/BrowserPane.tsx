@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { usePaneStore, type BrowserPaneInfo } from '../store/paneStore'
 import { findController } from '../model/findController'
 import FindBar from './FindBar'
@@ -57,20 +57,26 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
     window.arcnext.browser.stopFindInPage(paneId)
   }, [paneId])
 
-  const findHandler = useMemo(() => ({
+  // Stable find handler via ref — avoids stale closures and re-registration churn
+  const findRef = useRef({ open: () => {}, close: () => {}, next: () => {}, prev: () => {}, isOpen: () => false })
+  findRef.current = {
     open: () => { window.arcnext.browser.focusRenderer(); setFindOpen(true) },
-    close: () => handleFindClose(),
-    next: () => handleFindNext(),
-    prev: () => handleFindPrev(),
+    close: handleFindClose,
+    next: handleFindNext,
+    prev: handleFindPrev,
     isOpen: () => findOpen,
-  }), [findOpen, handleFindClose, handleFindNext, handleFindPrev])
+  }
 
   useEffect(() => {
-    if (isActivePane) {
-      findController.register(findHandler)
-      return () => findController.unregister(findHandler)
-    }
-  }, [isActivePane, findHandler])
+    findController.register(paneId, {
+      open:   () => findRef.current.open(),
+      close:  () => findRef.current.close(),
+      next:   () => findRef.current.next(),
+      prev:   () => findRef.current.prev(),
+      isOpen: () => findRef.current.isOpen(),
+    })
+    return () => findController.unregister(paneId)
+  }, [paneId])
 
   // Listen for found-in-page results
   useEffect(() => {
