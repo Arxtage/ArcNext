@@ -17,7 +17,36 @@ import { usePaneStore } from '../store/paneStore'
 import type { PaneInfo, TerminalPaneInfo, BrowserPaneInfo } from '../../shared/types'
 import { allPaneIds } from '../model/gridLayout'
 
+const browserGoBack = vi.fn()
+const browserEnterPip = vi.fn()
+const browserExitPip = vi.fn()
+const browserDismissPip = vi.fn()
+const browserFocusRenderer = vi.fn()
+const ptyWrite = vi.fn()
+const pinnedSave = vi.fn()
+const pinnedSaveSync = vi.fn()
+
 function resetStore() {
+  const mockWindow = {
+    arcnext: {
+      browser: {
+        goBack: browserGoBack,
+        enterPip: browserEnterPip,
+        exitPip: browserExitPip,
+        dismissPip: browserDismissPip,
+        focusRenderer: browserFocusRenderer
+      },
+      pty: {
+        write: ptyWrite
+      },
+      pinnedWorkspaces: {
+        save: pinnedSave,
+        saveSync: pinnedSaveSync
+      }
+    }
+  } as unknown as Window
+
+  Object.assign(globalThis, { window: mockWindow })
   // Reset zustand store to initial state
   usePaneStore.setState({
     workspaces: [],
@@ -237,6 +266,91 @@ describe('paneStore — browser pane actions', () => {
     expect(ws.activePaneId).toBe('pane-docked')
     expect(pane.title).toBe('Example Domain')
     expect(pane.isLoading).toBe(false)
+  })
+
+  it('addBrowserWorkspace can remember which workspace opened the link', () => {
+    const openerWorkspaceId = usePaneStore.getState().workspaces[0].id
+
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', {
+      openerWorkspaceId
+    })
+
+    const ws = usePaneStore.getState().workspaces[usePaneStore.getState().workspaces.length - 1]
+    const pane = usePaneStore.getState().panes.get(ws.activePaneId) as BrowserPaneInfo
+
+    expect(pane.openerWorkspaceId).toBe(openerWorkspaceId)
+  })
+})
+
+describe('paneStore — opener-aware browser back', () => {
+  beforeEach(resetStore)
+
+  it('uses real browser history before falling back to close-and-return', () => {
+    const openerWorkspaceId = usePaneStore.getState().workspaces[0].id
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', { openerWorkspaceId })
+    const browserWs = usePaneStore.getState().workspaces[1]
+    const browserPaneId = browserWs.activePaneId
+
+    usePaneStore.getState().setBrowserPaneNavState(browserPaneId, true, false)
+    usePaneStore.getState().goBackBrowserPane(browserPaneId)
+
+    expect(browserGoBack).toHaveBeenCalledWith(browserPaneId)
+    expect(usePaneStore.getState().activeWorkspaceId).toBe(browserWs.id)
+  })
+
+  it('closes a single-pane spawned workspace and returns to the opener workspace', () => {
+    const openerWorkspaceId = usePaneStore.getState().workspaces[0].id
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', { openerWorkspaceId })
+    const browserWs = usePaneStore.getState().workspaces[1]
+    const browserPaneId = browserWs.activePaneId
+
+    vi.clearAllMocks()
+    usePaneStore.getState().goBackBrowserPane(browserPaneId)
+
+    expect(usePaneStore.getState().workspaces).toHaveLength(1)
+    expect(usePaneStore.getState().activeWorkspaceId).toBe(openerWorkspaceId)
+    expect(usePaneStore.getState().panes.has(browserPaneId)).toBe(false)
+    expect(browserGoBack).not.toHaveBeenCalled()
+  })
+
+  it('closes only the spawned pane in a multi-pane workspace and switches back to the opener', () => {
+    const openerWorkspaceId = usePaneStore.getState().workspaces[0].id
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', { openerWorkspaceId })
+    const browserWsId = usePaneStore.getState().activeWorkspaceId!
+    const browserPaneId = usePaneStore.getState().workspaces.find((w) => w.id === browserWsId)!.activePaneId
+
+    usePaneStore.getState().splitActive('horizontal')
+    usePaneStore.getState().setActivePaneInWorkspace(browserPaneId)
+
+    vi.clearAllMocks()
+    usePaneStore.getState().goBackBrowserPane(browserPaneId)
+
+    const state = usePaneStore.getState()
+    const browserWs = state.workspaces.find((w) => w.id === browserWsId)!
+
+    expect(allPaneIds(browserWs.grid)).toHaveLength(1)
+    expect(state.panes.has(browserPaneId)).toBe(false)
+    expect(state.activeWorkspaceId).toBe(openerWorkspaceId)
+    expect(browserGoBack).not.toHaveBeenCalled()
+  })
+
+  it('falls back to workspace history when the opener workspace no longer exists', () => {
+    const ws1 = usePaneStore.getState().workspaces[0].id
+
+    usePaneStore.getState().addWorkspace()
+    const ws2 = usePaneStore.getState().activeWorkspaceId!
+
+    usePaneStore.getState().switchWorkspace(ws1)
+    usePaneStore.getState().addBrowserWorkspace('https://example.com', { openerWorkspaceId: ws1 })
+
+    const browserWs = usePaneStore.getState().workspaces.find((w) => w.id === usePaneStore.getState().activeWorkspaceId!)!
+    const browserPaneId = browserWs.activePaneId
+
+    usePaneStore.getState().removeWorkspace(ws1)
+    usePaneStore.getState().goBackBrowserPane(browserPaneId)
+
+    expect(usePaneStore.getState().activeWorkspaceId).toBe(ws2)
+    expect(usePaneStore.getState().panes.has(browserPaneId)).toBe(false)
   })
 })
 

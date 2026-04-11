@@ -1,14 +1,13 @@
-type OpenWindowFn = (url?: string | URL, target?: string, features?: string) => Window | null
+type OpenInNewWorkspaceFn = (url: string, sourcePaneId?: string) => void
 
 /**
- * xterm's default WebLinksAddon handler opens a blank popup first and then
- * mutates location.href. Electron's setWindowOpenHandler only sees the first
- * blank open, which leaves the new page stuck on about:blank.
- * Open the final URL directly instead.
+ * Open terminal links as first-class browser workspaces instead of routing
+ * through window.open, so we can preserve opener context for Back behavior.
  */
 export function openExternalLink(
   url: string,
-  openWindow: OpenWindowFn = window.open.bind(window)
+  sourcePaneId: string,
+  openInNewWorkspace: OpenInNewWorkspaceFn = window.arcnext.browser.openInNewWorkspace
 ): void {
-  openWindow(url, '_blank', 'noopener,noreferrer')
+  openInNewWorkspace(url, sourcePaneId)
 }

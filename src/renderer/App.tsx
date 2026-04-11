@@ -9,7 +9,7 @@ import {
   onTitleChange as agentOnTitleChange, onPtyData as agentOnPtyData, startIdleChecker
 } from './model/agentDetector'
 import { findController } from './model/findController'
-import { NavDirection } from './model/gridLayout'
+import { NavDirection, allPaneIds } from './model/gridLayout'
 import type { BrowserPaneInfo } from './store/paneStore'
 
 const ARROW_TO_DIR: Record<string, NavDirection> = {
@@ -68,7 +68,7 @@ function handleBrowserShortcuts(e: KeyboardEvent, ws: Workspace, meta: boolean, 
   }
   if (meta && !e.shiftKey && !alt && e.key === '[') {
     e.preventDefault()
-    window.arcnext.browser.goBack(ws.activePaneId)
+    usePaneStore.getState().goBackBrowserPane(ws.activePaneId)
     return true
   }
   if (meta && !e.shiftKey && !alt && e.key === ']') {
@@ -77,6 +77,15 @@ function handleBrowserShortcuts(e: KeyboardEvent, ws: Workspace, meta: boolean, 
     return true
   }
   return false
+}
+
+function resolveOpenerWorkspaceId(sourcePaneId?: string): string | undefined {
+  const state = usePaneStore.getState()
+  if (sourcePaneId) {
+    const opener = state.workspaces.find((w) => allPaneIds(w.grid).includes(sourcePaneId))
+    if (opener) return opener.id
+  }
+  return state.activeWorkspaceId ?? undefined
 }
 
 function handleGlobalShortcuts(e: KeyboardEvent, meta: boolean, alt: boolean, key: string): boolean {
@@ -232,8 +241,10 @@ export default function App() {
           usePaneStore.setState({ pipPaneId: null })
         }
       }),
-      window.arcnext.browser.onOpenInNewWorkspace((url) => {
-        usePaneStore.getState().addBrowserWorkspace(url)
+      window.arcnext.browser.onOpenInNewWorkspace((url, sourcePaneId) => {
+        usePaneStore.getState().addBrowserWorkspace(url, {
+          openerWorkspaceId: resolveOpenerWorkspaceId(sourcePaneId)
+        })
       }),
       window.arcnext.browser.onSummarize((paneId, url) => {
         usePaneStore.getState().summarizeUrl(paneId, url)

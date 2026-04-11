@@ -76,6 +76,7 @@ interface BrowserPaneOptions {
   paneId?: string
   title?: string
   isLoading?: boolean
+  openerWorkspaceId?: string
 }
 
 interface PaneStore {
@@ -123,6 +124,7 @@ interface PaneStore {
   setBrowserPaneNavState: (id: string, canGoBack: boolean, canGoForward: boolean) => void
   setBrowserPaneLoading: (id: string, isLoading: boolean) => void
   setBrowserPaneFavicon: (id: string, faviconUrl: string) => void
+  goBackBrowserPane: (paneId: string) => void
 
   // Pinned workspaces
   pinWorkspace: (id: string) => void
@@ -186,7 +188,8 @@ function makeBrowserPane(url: string, options: BrowserPaneOptions = {}): Browser
     url,
     canGoBack: false,
     canGoForward: false,
-    isLoading: options.isLoading ?? true
+    isLoading: options.isLoading ?? true,
+    openerWorkspaceId: options.openerWorkspaceId
   }
 }
 
@@ -216,6 +219,26 @@ let _persistTimer: ReturnType<typeof setTimeout> | null = null
 
 function isPaneInPinnedWorkspace(paneId: string, workspaces: Workspace[]): boolean {
   return workspaces.some((w) => w.pinned && allPaneIds(w.grid).includes(paneId))
+}
+
+function findWorkspaceByPaneId(workspaces: Workspace[], paneId: string): Workspace | undefined {
+  return workspaces.find((w) => allPaneIds(w.grid).includes(paneId))
+}
+
+function getReturnWorkspace(
+  workspaces: Workspace[],
+  currentWorkspaceId: string,
+  openerWorkspaceId?: string
+): Workspace | undefined {
+  if (openerWorkspaceId) {
+    const opener = workspaces.find((w) => w.id === openerWorkspaceId)
+    if (opener) return opener
+  }
+
+  const otherWorkspaces = workspaces.filter((w) => w.id !== currentWorkspaceId)
+  const fromHistory = popWorkspaceHistory(otherWorkspaces)
+  if (fromHistory) return otherWorkspaces.find((w) => w.id === fromHistory)
+  return otherWorkspaces.find((w) => !w.dormant)
 }
 
 /** Shared logic for closing a pane in any workspace */
@@ -705,6 +728,40 @@ export const usePaneStore = create<PaneStore>((set, get) => ({
     if (isPaneInPinnedWorkspace(id, workspaces)) get().persistPinned()
   },
 
+  goBackBrowserPane: (paneId) => {
+    const { panes, workspaces } = get()
+    const pane = panes.get(paneId)
+    if (!pane || pane.type !== 'browser') return
+
+    if (pane.canGoBack) {
+      window.arcnext.browser.goBack(paneId)
+      return
+    }
+
+    if (!pane.openerWorkspaceId) return
+
+    const currentWs = findWorkspaceByPaneId(workspaces, paneId)
+    if (!currentWs) return
+
+    const targetWs = getReturnWorkspace(workspaces, currentWs.id, pane.openerWorkspaceId)
+    const shouldCloseWorkspace = allPaneIds(currentWs.grid).length === 1
+
+    if (shouldCloseWorkspace) {
+      get().removeWorkspace(currentWs.id)
+    } else {
+      closePaneInWs(get, set, currentWs.id, paneId)
+    }
+
+    if (!targetWs) return
+
+    const nextTarget = get().workspaces.find((w) => w.id === targetWs.id)
+    if (!nextTarget) return
+    if (nextTarget.dormant) get().wakeWorkspace(nextTarget.id)
+    if (get().activeWorkspaceId !== nextTarget.id) {
+      get().switchWorkspace(nextTarget.id)
+    }
+  },
+
   pinWorkspace: (id) => {
     const { workspaces } = get()
     const ws = workspaces.find((w) => w.id === id)
@@ -1036,4 +1093,3 @@ usePaneStore.subscribe((state) => {
     usePaneStore.setState({ focusState: expected })
   }
 })
-

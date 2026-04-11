@@ -26,11 +26,13 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
     return ws?.activePaneId === paneId
   })
   const setActive = usePaneStore((s) => s.setActivePaneInWorkspace)
+  const goBackBrowserPane = usePaneStore((s) => s.goBackBrowserPane)
 
   const url = pane?.url ?? ''
   const canGoBack = pane?.canGoBack ?? false
   const canGoForward = pane?.canGoForward ?? false
   const isLoading = pane?.isLoading ?? false
+  const canCloseToOpener = !!pane?.openerWorkspaceId
 
   // Find-in-page state
   const [findOpen, setFindOpen] = useState(false)
@@ -163,8 +165,8 @@ export default function BrowserPane({ paneId, workspaceId }: Props) {
       <div className="browser-nav">
         <button
           className="browser-nav-btn"
-          disabled={!canGoBack}
-          onClick={() => window.arcnext.browser.goBack(paneId)}
+          disabled={!canGoBack && !canCloseToOpener}
+          onClick={() => goBackBrowserPane(paneId)}
           title="Back"
         >
           ‹

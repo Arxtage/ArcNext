@@ -28,7 +28,7 @@ function wireViewEvents(view: WebContentsView, paneId: string): () => void {
     onLoadFailed: (errorCode, errorDescription) => send('browser:loadFailed', paneId, errorCode, errorDescription),
     onFocus: () => send('browser:focused', paneId),
     onFavicon: (faviconUrl) => send('browser:faviconChanged', paneId, faviconUrl),
-    onOpenInNewWorkspace: (url) => send('browser:openInNewWorkspace', url),
+    onOpenInNewWorkspace: (url) => send('browser:openInNewWorkspace', url, paneId),
     onSummarize: (url) => send('browser:summarize', paneId, url),
     onFoundInPage: (activeMatch, totalMatches) => send('browser:foundInPage', paneId, activeMatch, totalMatches),
     onAudioStateChanged: (playing, muted) => {
@@ -96,6 +96,11 @@ export function setupBrowserViewManager(mainWindow: BrowserWindow): void {
 
   ipcMain.on('browser:destroy', (_e, paneId: string) => {
     destroyView(paneId)
+  })
+
+  ipcMain.on('browser:openInNewWorkspaceRequest', (_e, url: string, sourcePaneId?: string) => {
+    if (!win || win.isDestroyed()) return
+    win.webContents.send('browser:openInNewWorkspace', url, sourcePaneId)
   })
 
   ipcMain.on('browser:setBounds', (_e, paneId: string, bounds: { x: number; y: number; width: number; height: number }) => {

@@ -113,7 +113,7 @@ export function createTerminal(paneId: string, cwd?: string, scrollback?: string
   term.loadAddon(fit)
   term.loadAddon(search)
   term.loadAddon(serialize)
-  term.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)))
+  term.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri, paneId)))
 
   // Open terminal into a parked host div immediately so DOM element always exists
   const host = document.createElement('div')
